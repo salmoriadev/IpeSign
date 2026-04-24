@@ -1,0 +1,17 @@
+{
+  "mode": "hash-only",
+  "fileName": "direct-cli.pdf",
+  "issuerId": "ipe",
+  "documentHash": "sha256:d7dd0115be8b79ae057b3f6ca0fcee578085ba6919dcb70e8643a2aff537d9b5",
+  "signedHashBase64": "4Riy6BPuHmvCtdH9MiorcDvRlqwvo2QmuB6kpA25nnQNHqoIfHxAWUXlYiJBzDdeXuTJWUqTbQRe4xAOKX2VCw==",
+  "signatureBase64": "4Riy6BPuHmvCtdH9MiorcDvRlqwvo2QmuB6kpA25nnQNHqoIfHxAWUXlYiJBzDdeXuTJWUqTbQRe4xAOKX2VCw==",
+  "signatureHash": "sha256:844b4c2ab26550f60572b65e159cc02a1e390b090a6c0dcb90cb7c8d405570cf",
+  "certificatePem": "-----BEGIN CERTIFICATE-----\nMIICBzCCAbmgAwIBAgIQaK/xmfdiLZBTzqTFqXpTEDAFBgMrZXAwJDEMMAoGA1UE\nChMDSXBlMRQwEgYDVQQDEwtJcGUgUm9vdCBDQTAeFw0yNjA0MjQxODE4MzFaFw0y\nNjA0MjQxODI5MzFaMDwxDDAKBgNVBAoTA0lwZTEsMCoGA1UEAxMjSXBlIFNpbmds\nZS1Vc2UgRG9jdW1lbnQgQ2VydGlmaWNhdGUwKjAFBgMrZXADIQDbh5lVw68Dvw28\nLr/7Xwm0R89zPwln94lu4RvbNFygYKOB6DCB5TAOBgNVHQ8BAf8EBAMCB4AwEwYD\nVR0lBAwwCgYIKwYBBQUHAwMwDAYDVR0TAQH/BAIwADAfBgNVHSMEGDAWgBTOJ4Qz\nWxXfIxbyio0pZT0eiaYoFjBXBgorBgEEAYO/MAEBBEkTR3NoYTI1NjpkN2RkMDEx\nNWJlOGI3OWFlMDU3YjNmNmNhMGZjZWU1NzgwODViYTY5MTlkY2I3MGU4NjQzYTJh\nZmY1MzdkOWI1MCAGCisGAQQBg78wAQIEEhMQcGFydGljaXBhdGlvbi12MTAUBgor\nBgEEAYO/MAEDBAYTBHRydWUwBQYDK2VwA0EAnQQP/3puugbdQyu0RQqO8RZeuIqd\nRSMuevyZizbgCvBScfkxryasdePy5QRZQqI/sMn3OzZhguB7WCGWxf08CQ==\n-----END CERTIFICATE-----\n",
+  "certHash": "sha256:4583ee2087b3c45b78a7b8f2db846ead1ba6caf34f6d333957027e3ba6d03ce7",
+  "publicKeyHash": "sha256:11da77f8a06b3449a82661cec0f48f4ceecd8f65a7d46ff7df7fcc68f2457cf6",
+  "policyId": "participation-v1",
+  "singleUse": true,
+  "recordId": "pdfsig-2",
+  "signedPdfHash": "sha256:d7dd0115be8b79ae057b3f6ca0fcee578085ba6919dcb70e8643a2aff537d9b5",
+  "ephemeralDisposed": true
+}
