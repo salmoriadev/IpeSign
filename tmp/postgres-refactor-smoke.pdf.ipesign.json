@@ -1,0 +1,17 @@
+{
+  "mode": "hash-only",
+  "fileName": "postgres-refactor-smoke.pdf",
+  "issuerId": "ipe",
+  "documentHash": "sha256:d7dd0115be8b79ae057b3f6ca0fcee578085ba6919dcb70e8643a2aff537d9b5",
+  "signedHashBase64": "NPpJk7RL/v7SuSjJr11IYL758+JylVAymrPB8qnP3qjUSger0IrS/7Ih2ZyokBWukIvN/kajNl4uoLuCTMADDw==",
+  "signatureBase64": "NPpJk7RL/v7SuSjJr11IYL758+JylVAymrPB8qnP3qjUSger0IrS/7Ih2ZyokBWukIvN/kajNl4uoLuCTMADDw==",
+  "signatureHash": "sha256:2a9806207d41f39d3fe251b7b2f7b99b6e3e3464261e9f2b721b791c183acd92",
+  "certificatePem": "-----BEGIN CERTIFICATE-----\nMIICCDCCAbqgAwIBAgIRAJ93nOpjpwokdaS5J3BGls8wBQYDK2VwMCQxDDAKBgNV\nBAoTA0lwZTEUMBIGA1UEAxMLSXBlIFJvb3QgQ0EwHhcNMjYwNDI0MTg0MjM0WhcN\nMjYwNDI0MTg1MzM0WjA8MQwwCgYDVQQKEwNJcGUxLDAqBgNVBAMTI0lwZSBTaW5n\nbGUtVXNlIERvY3VtZW50IENlcnRpZmljYXRlMCowBQYDK2VwAyEAiWSVz1Xh8IMV\nXiLNuXM7u2b65JQTsSKD/+cff16+5TujgegwgeUwDgYDVR0PAQH/BAQDAgeAMBMG\nA1UdJQQMMAoGCCsGAQUFBwMDMAwGA1UdEwEB/wQCMAAwHwYDVR0jBBgwFoAUzieE\nM1sV3yMW8oqNKWU9HommKBYwVwYKKwYBBAGDvzABAQRJE0dzaGEyNTY6ZDdkZDAx\nMTViZThiNzlhZTA1N2IzZjZjYTBmY2VlNTc4MDg1YmE2OTE5ZGNiNzBlODY0M2Ey\nYWZmNTM3ZDliNTAgBgorBgEEAYO/MAECBBITEHBhcnRpY2lwYXRpb24tdjEwFAYK\nKwYBBAGDvzABAwQGEwR0cnVlMAUGAytlcANBAIFlSwW9NiN2Ldsp64E0MhhN8rYt\nVc5OpHoMAGISni9Kpo7cNRGfCxadGf+pZ0B0yyzC9bTsnnOTFp+g/2SEZAY=\n-----END CERTIFICATE-----\n",
+  "certHash": "sha256:62751d9189ded05d58de08ab0383b4437eea212c7f74b4929a5b1853d18bbcea",
+  "publicKeyHash": "sha256:a1492a291a8e84d3c520ae1947832938d7ba0a30b29b8d64a92b6fe1a6d17676",
+  "policyId": "participation-v1",
+  "singleUse": true,
+  "recordId": "pdfsig-3",
+  "signedPdfHash": "sha256:d7dd0115be8b79ae057b3f6ca0fcee578085ba6919dcb70e8643a2aff537d9b5",
+  "ephemeralDisposed": true
+}

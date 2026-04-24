@@ -1,27 +1,27 @@
 package persist
 
 import (
-	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os/exec"
+	"strings"
 
 	"ipesign/internal/cryptoutil"
-
-	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 const createStateTableSQL = `
 CREATE TABLE IF NOT EXISTS ipesign_state (
     id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-    ca_cert_pem BYTEA NOT NULL,
-    ca_key_pem BYTEA NOT NULL,
-    ledger_key_pem BYTEA NOT NULL,
-    chain_snapshot JSONB NOT NULL,
+    ca_cert_pem_b64 TEXT NOT NULL,
+    ca_key_pem_b64 TEXT NOT NULL,
+    ledger_key_pem_b64 TEXT NOT NULL,
+    chain_snapshot_b64 TEXT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );`
 
 type PostgresStore struct {
-	db *sql.DB
+	databaseURL string
 }
 
 func NewPostgresStore(databaseURL string) (*PostgresStore, error) {
@@ -29,19 +29,12 @@ func NewPostgresStore(databaseURL string) (*PostgresStore, error) {
 		return nil, fmt.Errorf("database URL is required")
 	}
 
-	db, err := sql.Open("pgx", databaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("open postgres: %w", err)
+	if _, err := exec.LookPath("psql"); err != nil {
+		return nil, fmt.Errorf("psql not found in PATH")
 	}
 
-	if err := db.Ping(); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("ping postgres: %w", err)
-	}
-
-	store := &PostgresStore{db: db}
+	store := &PostgresStore{databaseURL: databaseURL}
 	if err := store.migrate(); err != nil {
-		_ = db.Close()
 		return nil, err
 	}
 
@@ -53,34 +46,52 @@ func (s *PostgresStore) Backend() string {
 }
 
 func (s *PostgresStore) Exists() (bool, error) {
-	var exists bool
-	err := s.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM ipesign_state WHERE id = 1)`).Scan(&exists)
+	output, err := s.runPSQL(`SELECT EXISTS(SELECT 1 FROM ipesign_state WHERE id = 1);`)
 	if err != nil {
-		return false, fmt.Errorf("query state existence: %w", err)
+		return false, err
 	}
 
-	return exists, nil
+	return strings.TrimSpace(output) == "t", nil
 }
 
 func (s *PostgresStore) Load() (*State, error) {
-	var (
-		caCertPEM    []byte
-		caKeyPEM     []byte
-		ledgerKeyPEM []byte
-		rawBlocks    []byte
-	)
+	query := `
+SELECT
+  ca_cert_pem_b64,
+  ca_key_pem_b64,
+  ledger_key_pem_b64,
+  chain_snapshot_b64
+FROM ipesign_state
+WHERE id = 1;`
 
-	err := s.db.QueryRow(`
-		SELECT ca_cert_pem, ca_key_pem, ledger_key_pem, chain_snapshot
-		FROM ipesign_state
-		WHERE id = 1
-	`).Scan(&caCertPEM, &caKeyPEM, &ledgerKeyPEM, &rawBlocks)
+	output, err := s.runPSQL(query)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("postgres state not initialized")
-		}
+		return nil, err
+	}
 
-		return nil, fmt.Errorf("load postgres state: %w", err)
+	lines := splitPSQLFields(output)
+	if len(lines) != 4 {
+		return nil, fmt.Errorf("unexpected postgres state shape")
+	}
+
+	caCertPEM, err := base64.StdEncoding.DecodeString(lines[0])
+	if err != nil {
+		return nil, fmt.Errorf("decode CA certificate: %w", err)
+	}
+
+	caKeyPEM, err := base64.StdEncoding.DecodeString(lines[1])
+	if err != nil {
+		return nil, fmt.Errorf("decode CA private key: %w", err)
+	}
+
+	ledgerKeyPEM, err := base64.StdEncoding.DecodeString(lines[2])
+	if err != nil {
+		return nil, fmt.Errorf("decode ledger private key: %w", err)
+	}
+
+	rawBlocks, err := base64.StdEncoding.DecodeString(lines[3])
+	if err != nil {
+		return nil, fmt.Errorf("decode chain snapshot: %w", err)
 	}
 
 	ledgerKey, err := cryptoutil.ParseEd25519PrivateKeyPEM(ledgerKeyPEM)
@@ -115,27 +126,68 @@ func (s *PostgresStore) Save(state *State) error {
 		return fmt.Errorf("encode chain snapshot: %w", err)
 	}
 
-	_, err = s.db.Exec(`
-		INSERT INTO ipesign_state (id, ca_cert_pem, ca_key_pem, ledger_key_pem, chain_snapshot, updated_at)
-		VALUES (1, $1, $2, $3, $4::jsonb, NOW())
-		ON CONFLICT (id) DO UPDATE SET
-			ca_cert_pem = EXCLUDED.ca_cert_pem,
-			ca_key_pem = EXCLUDED.ca_key_pem,
-			ledger_key_pem = EXCLUDED.ledger_key_pem,
-			chain_snapshot = EXCLUDED.chain_snapshot,
-			updated_at = NOW()
-	`, state.CACertPEM, state.CAKeyPEM, ledgerKeyPEM, rawBlocks)
-	if err != nil {
-		return fmt.Errorf("save postgres state: %w", err)
-	}
+	caCertPEMB64 := base64.StdEncoding.EncodeToString(state.CACertPEM)
+	caKeyPEMB64 := base64.StdEncoding.EncodeToString(state.CAKeyPEM)
+	ledgerKeyPEMB64 := base64.StdEncoding.EncodeToString(ledgerKeyPEM)
+	chainSnapshotB64 := base64.StdEncoding.EncodeToString(rawBlocks)
 
-	return nil
+	query := fmt.Sprintf(`
+INSERT INTO ipesign_state (
+  id,
+  ca_cert_pem_b64,
+  ca_key_pem_b64,
+  ledger_key_pem_b64,
+  chain_snapshot_b64,
+  updated_at
+) VALUES (
+  1,
+  $ipesign$%s$ipesign$,
+  $ipesign$%s$ipesign$,
+  $ipesign$%s$ipesign$,
+  $ipesign$%s$ipesign$,
+  NOW()
+)
+ON CONFLICT (id) DO UPDATE SET
+  ca_cert_pem_b64 = EXCLUDED.ca_cert_pem_b64,
+  ca_key_pem_b64 = EXCLUDED.ca_key_pem_b64,
+  ledger_key_pem_b64 = EXCLUDED.ledger_key_pem_b64,
+  chain_snapshot_b64 = EXCLUDED.chain_snapshot_b64,
+  updated_at = NOW();
+`, caCertPEMB64, caKeyPEMB64, ledgerKeyPEMB64, chainSnapshotB64)
+
+	_, err = s.runPSQL(query)
+	return err
 }
 
 func (s *PostgresStore) migrate() error {
-	if _, err := s.db.Exec(createStateTableSQL); err != nil {
-		return fmt.Errorf("migrate postgres state: %w", err)
+	_, err := s.runPSQL(createStateTableSQL)
+	return err
+}
+
+func (s *PostgresStore) runPSQL(sql string) (string, error) {
+	cmd := exec.Command("psql", s.databaseURL, "-X", "-A", "-t", "-q", "-v", "ON_ERROR_STOP=1", "-c", sql)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("psql command failed: %w: %s", err, strings.TrimSpace(string(output)))
 	}
 
-	return nil
+	return strings.TrimSpace(string(output)), nil
+}
+
+func splitPSQLFields(raw string) []string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil
+	}
+
+	lines := strings.Split(trimmed, "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		out = append(out, line)
+	}
+
+	return out
 }

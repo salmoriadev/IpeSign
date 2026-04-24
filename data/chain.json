@@ -102,5 +102,81 @@
     },
     "payloadHash": "sha256:8be318351395b4c598ef909bcf76688e9042e44d177f55868ae3424f91f66b7d",
     "ledgerSignature": "lojJIuZCd5/agPl0kaoQnw9XW7pm3aC4F/ZCJrn6G/qNHO4aTO8sGNYqhmFt7V+coj/tc1xQDgopogV4xQdgDA=="
+  },
+  {
+    "index": 6,
+    "prevHash": "sha256:30909b7e4723a90ae4e97d37804bef19294cbe4cd323463755d08304c654e7b6",
+    "blockHash": "sha256:d86dde0208b014af2f8e891707e7941dc4f34baa74db9469bee3164a3aa03d03",
+    "timestamp": "2026-04-24T18:43:34.43837525Z",
+    "eventType": "CERTIFICATE_ISSUED",
+    "payload": {
+      "certHash": "sha256:62751d9189ded05d58de08ab0383b4437eea212c7f74b4929a5b1853d18bbcea",
+      "publicKeyHash": "sha256:a1492a291a8e84d3c520ae1947832938d7ba0a30b29b8d64a92b6fe1a6d17676",
+      "issuerId": "ipe",
+      "documentHash": "sha256:d7dd0115be8b79ae057b3f6ca0fcee578085ba6919dcb70e8643a2aff537d9b5",
+      "policyId": "participation-v1",
+      "singleUse": true,
+      "createdAt": "2026-04-24T18:43:34Z"
+    },
+    "payloadHash": "sha256:f691c3ae692be21990f6661b8b415d5c94ba7bfbac3584cdd4f70ade7811d574",
+    "ledgerSignature": "4kS0xWECpvLYHUV8bg63rm9sld1PC8+uDTdv4GATM5GcMsQpbvMs57x8QSF3lUhLo9LtT6GNBVltUOIB0arEBA=="
+  },
+  {
+    "index": 7,
+    "prevHash": "sha256:d86dde0208b014af2f8e891707e7941dc4f34baa74db9469bee3164a3aa03d03",
+    "blockHash": "sha256:09fb97ed02b07cbadeea593a069207ce46329958dfbd484d22e360bbe81ff743",
+    "timestamp": "2026-04-24T18:43:34.439107492Z",
+    "eventType": "SIGNATURE_REGISTERED",
+    "payload": {
+      "recordId": "pdfsig-3",
+      "certHash": "sha256:62751d9189ded05d58de08ab0383b4437eea212c7f74b4929a5b1853d18bbcea",
+      "documentHash": "sha256:d7dd0115be8b79ae057b3f6ca0fcee578085ba6919dcb70e8643a2aff537d9b5",
+      "signedPdfHash": "sha256:d7dd0115be8b79ae057b3f6ca0fcee578085ba6919dcb70e8643a2aff537d9b5",
+      "signatureHash": "sha256:2a9806207d41f39d3fe251b7b2f7b99b6e3e3464261e9f2b721b791c183acd92",
+      "issuerId": "ipe",
+      "policyId": "participation-v1",
+      "signedAt": "2026-04-24T18:43:34Z",
+      "status": "VALID"
+    },
+    "payloadHash": "sha256:ac61ceaa72c7523f17c2c0a21711291d7acc1fa64961fcb62f51c67879cf0b31",
+    "ledgerSignature": "rcpB9sCd4Y2kpQ6K4h+yM5tpmYIJMVOunMGd/c6Z9VVUTJfhaA4vBuXhXG8yevGZAZAJ6LjUzzLWfor4xW3HBA=="
+  },
+  {
+    "index": 8,
+    "prevHash": "sha256:09fb97ed02b07cbadeea593a069207ce46329958dfbd484d22e360bbe81ff743",
+    "blockHash": "sha256:d81be648432ae60506ea5a5344c2cf264459b0fddc84620aca2b4e2de434b7b4",
+    "timestamp": "2026-04-24T18:49:38.063127191Z",
+    "eventType": "CERTIFICATE_ISSUED",
+    "payload": {
+      "certHash": "sha256:30191b9901602c79e8955a958712911e59e023b28cf46382cf7051f11428f131",
+      "publicKeyHash": "sha256:d289d050744a70532918a4db0c789e46e9b9be4e15b3143018a7dd54f059e573",
+      "issuerId": "ipe",
+      "documentHash": "sha256:8f8170c46517e9ae7c5a7bec96dbf4dc831f9cc86cb6622efe6a8be0f3018304",
+      "policyId": "participation-v1",
+      "singleUse": true,
+      "createdAt": "2026-04-24T18:49:38Z"
+    },
+    "payloadHash": "sha256:3f3a3452713e7c927972396968aaee866af1c143415ad617a207f538b6eabf7e",
+    "ledgerSignature": "IEHes4pHkW8fs/5Q2QR4Lb/e9YAeHmTfJDHoXZWRfcmZJdcXScq5C9YaRzyvDW/mBzaKikelVQMjd+2NEW7zDw=="
+  },
+  {
+    "index": 9,
+    "prevHash": "sha256:d81be648432ae60506ea5a5344c2cf264459b0fddc84620aca2b4e2de434b7b4",
+    "blockHash": "sha256:e8320705ab873483887c808d03ef1ffb6ca8ae1818119bc66ac942400ba87ce2",
+    "timestamp": "2026-04-24T18:49:38.063582116Z",
+    "eventType": "SIGNATURE_REGISTERED",
+    "payload": {
+      "recordId": "pdfsig-4",
+      "certHash": "sha256:30191b9901602c79e8955a958712911e59e023b28cf46382cf7051f11428f131",
+      "documentHash": "sha256:8f8170c46517e9ae7c5a7bec96dbf4dc831f9cc86cb6622efe6a8be0f3018304",
+      "signedPdfHash": "sha256:8f8170c46517e9ae7c5a7bec96dbf4dc831f9cc86cb6622efe6a8be0f3018304",
+      "signatureHash": "sha256:e7c3c7af7dcdcaddfad3c6cb2a4746cbc17e292d5bfef175075ced884c77ac8a",
+      "issuerId": "ipe",
+      "policyId": "participation-v1",
+      "signedAt": "2026-04-24T18:49:38Z",
+      "status": "VALID"
+    },
+    "payloadHash": "sha256:1831b89b646c7c9c1c5a59af1dbe6617c7c45c739c4f67f80ff611338cec8dd0",
+    "ledgerSignature": "PZNJS8cQ8/Dis23L3nEt8Pig1ruVpoRJP/+ttg+8nySJc+yJI38Zs8k06nSmMrqSglIgL32ZcB7Ygk52gY64CQ=="
   }
 ]
