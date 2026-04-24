@@ -45,16 +45,16 @@ Backend atual:
 
 - `GET /v1/health`
 - `GET /v1/ca`
-- `POST /v1/sign`
-- `POST /v1/verify`
-- `GET /v1/chain/walk`
-- `GET /v1/chain/verify`
-
-Backend alvo para organização futura:
-
 - `POST /v1/documents/sign`
 - `POST /v1/documents/verify`
 - `GET /v1/records/:recordId`
+- `GET /v1/chain/walk`
+- `GET /v1/chain/verify`
+
+Compatibilidade legada:
+
+- `POST /v1/sign`
+- `POST /v1/verify`
 
 ## Estado funcional do produto
 

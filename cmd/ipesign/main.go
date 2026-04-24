@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	httprouter "ipesign/apps/api/http/router"
 	"ipesign/internal/api"
 	"ipesign/internal/ledger/localchain"
 )
@@ -70,7 +71,7 @@ func runServer(args []string) error {
 	}
 
 	log.Printf("ipesign server listening on %s", *addr)
-	return http.ListenAndServe(*addr, server.Handler())
+	return http.ListenAndServe(*addr, httprouter.New(server))
 }
 
 func runSign(args []string) error {

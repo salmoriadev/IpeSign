@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	httprouter "ipesign/apps/api/http/router"
 	"ipesign/internal/api"
 )
 
@@ -22,7 +23,7 @@ func main() {
 	}
 
 	log.Printf("ipesign api listening on %s", addr)
-	if err := http.ListenAndServe(addr, server.Handler()); err != nil {
+	if err := http.ListenAndServe(addr, httprouter.New(server)); err != nil {
 		log.Fatalf("server stopped: %v", err)
 	}
 }

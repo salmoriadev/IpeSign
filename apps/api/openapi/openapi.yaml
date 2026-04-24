@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: IpeSign API
-  version: 0.1.0
-  description: Initial contract for the IpeSign web backend.
+  version: 0.2.0
+  description: Public HTTP API for signing and verifying PDF hashes with ephemeral certificates and an append-only ledger.
 servers:
   - url: http://localhost:8080
 paths:
@@ -11,57 +11,65 @@ paths:
       summary: Health check
       responses:
         "200":
-          description: OK
+          description: API and ledger status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
   /v1/ca:
     get:
       summary: Get CA metadata
       responses:
         "200":
           description: CA metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CAResponse"
   /v1/documents/sign:
     post:
-      summary: Sign a PDF
+      summary: Sign a PDF hash
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
-              type: object
-              required:
-                - pdf
-              properties:
-                pdf:
-                  type: string
-                  format: binary
-                policy_id:
-                  type: string
+              $ref: "#/components/schemas/SignRequest"
       responses:
         "200":
           description: Document signed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/documents/verify:
     post:
-      summary: Verify a signed PDF
+      summary: Verify a signed PDF hash
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
-              type: object
-              required:
-                - pdf
-                - certificate_pem
-                - signature_base64
-              properties:
-                pdf:
-                  type: string
-                  format: binary
-                certificate_pem:
-                  type: string
-                signature_base64:
-                  type: string
+              $ref: "#/components/schemas/VerifyRequest"
       responses:
         "200":
           description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/records/{recordId}:
     get:
       summary: Get record metadata
@@ -74,3 +82,322 @@ paths:
       responses:
         "200":
           description: Record metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordResponse"
+        "404":
+          description: Record not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/chain/walk:
+    get:
+      summary: Walk the ledger chain
+      parameters:
+        - in: query
+          name: direction
+          required: false
+          schema:
+            type: string
+            enum: [forward, reverse]
+            default: forward
+      responses:
+        "200":
+          description: Chain walk result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChainWalkResponse"
+  /v1/chain/verify:
+    get:
+      summary: Verify the ledger chain
+      responses:
+        "200":
+          description: Chain verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChainVerifyResponse"
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    SignRequest:
+      type: object
+      required: [pdf]
+      properties:
+        pdf:
+          type: string
+          format: binary
+        policy_id:
+          type: string
+          default: participation-v1
+    VerifyRequest:
+      type: object
+      required: [pdf, certificate_pem, signature_base64]
+      properties:
+        pdf:
+          type: string
+          format: binary
+        certificate_pem:
+          type: string
+        signature_base64:
+          type: string
+    HealthResponse:
+      type: object
+      required: [status, issuerId, issuerName, chainBlocks]
+      properties:
+        status:
+          type: string
+          example: ok
+        issuerId:
+          type: string
+          example: ipe
+        issuerName:
+          type: string
+          example: Ipe
+        chainBlocks:
+          type: integer
+        lastBlockHash:
+          type: string
+    CAResponse:
+      type: object
+      required:
+        [issuerId, issuerName, caCertificate, caCertificateHash, caPublicKeyHash]
+      properties:
+        issuerId:
+          type: string
+        issuerName:
+          type: string
+        caCertificate:
+          type: string
+        caCertificateHash:
+          type: string
+        caPublicKeyHash:
+          type: string
+    SignResponse:
+      type: object
+      required:
+        [
+          mode,
+          fileName,
+          issuerId,
+          documentHash,
+          signedHashBase64,
+          signatureBase64,
+          signatureHash,
+          certificatePem,
+          certHash,
+          publicKeyHash,
+          policyId,
+          singleUse,
+          recordId,
+          signedPdfHash,
+          ephemeralDisposed
+        ]
+      properties:
+        mode:
+          type: string
+          example: hash-only
+        fileName:
+          type: string
+        issuerId:
+          type: string
+        documentHash:
+          type: string
+        signedHashBase64:
+          type: string
+        signatureBase64:
+          type: string
+        signatureHash:
+          type: string
+        certificatePem:
+          type: string
+        certHash:
+          type: string
+        publicKeyHash:
+          type: string
+        policyId:
+          type: string
+        singleUse:
+          type: boolean
+        recordId:
+          type: string
+        signedPdfHash:
+          type: string
+        ephemeralDisposed:
+          type: boolean
+    VerifyResponse:
+      type: object
+      required:
+        [
+          valid,
+          documentHash,
+          certificateTrusted,
+          certificateDocumentHash,
+          certificateDocumentMatches,
+          policyId,
+          singleUseInCertificate,
+          signatureValid,
+          ledgerRecordValid,
+          singleUseConfirmed,
+          recordId,
+          certHash,
+          signatureHash,
+          certificateRevoked,
+          signatureRevoked
+        ]
+      properties:
+        valid:
+          type: boolean
+        documentHash:
+          type: string
+        certificateTrusted:
+          type: boolean
+        certificateDocumentHash:
+          type: string
+        certificateDocumentMatches:
+          type: boolean
+        policyId:
+          type: string
+        singleUseInCertificate:
+          type: boolean
+        signatureValid:
+          type: boolean
+        ledgerRecordValid:
+          type: boolean
+        singleUseConfirmed:
+          type: boolean
+        recordId:
+          type: string
+        certHash:
+          type: string
+        signatureHash:
+          type: string
+        certificateRevoked:
+          type: boolean
+        signatureRevoked:
+          type: boolean
+    RecordResponse:
+      type: object
+      required:
+        [
+          recordId,
+          certHash,
+          publicKeyHash,
+          issuerId,
+          policyId,
+          documentHash,
+          signedPdfHash,
+          signatureHash,
+          singleUse,
+          status,
+          certificateRevoked,
+          signatureRevoked,
+          singleUseConfirmed,
+          ledgerRecordValid,
+          chainValid,
+          certificateIssuedAt,
+          signedAt
+        ]
+      properties:
+        recordId:
+          type: string
+        certHash:
+          type: string
+        publicKeyHash:
+          type: string
+        issuerId:
+          type: string
+        policyId:
+          type: string
+        documentHash:
+          type: string
+        signedPdfHash:
+          type: string
+        signatureHash:
+          type: string
+        singleUse:
+          type: boolean
+        status:
+          type: string
+        certificateRevoked:
+          type: boolean
+        signatureRevoked:
+          type: boolean
+        singleUseConfirmed:
+          type: boolean
+        ledgerRecordValid:
+          type: boolean
+        chainValid:
+          type: boolean
+        certificateIssuedAt:
+          type: string
+          format: date-time
+        signedAt:
+          type: string
+          format: date-time
+    ChainWalkBlock:
+      type: object
+      required: [index, eventType, blockHash, prevHash, timestamp, payloadHash]
+      properties:
+        index:
+          type: integer
+        eventType:
+          type: string
+        blockHash:
+          type: string
+        prevHash:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        payloadHash:
+          type: string
+    ChainWalkResponse:
+      type: object
+      required: [direction, blocks]
+      properties:
+        direction:
+          type: string
+          enum: [forward, reverse]
+        blocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChainWalkBlock"
+    ChainVerifyResponse:
+      type: object
+      required:
+        [
+          valid,
+          blocksVerified,
+          lastBlockHash,
+          issuersRegistered,
+          certificatesIssued,
+          signaturesRegistered,
+          revokedCertificates,
+          revokedSignatures
+        ]
+      properties:
+        valid:
+          type: boolean
+        blocksVerified:
+          type: integer
+        lastBlockHash:
+          type: string
+        issuersRegistered:
+          type: integer
+        certificatesIssued:
+          type: integer
+        signaturesRegistered:
+          type: integer
+        revokedCertificates:
+          type: integer
+        revokedSignatures:
+          type: integer

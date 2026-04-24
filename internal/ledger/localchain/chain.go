@@ -321,6 +321,13 @@ func (c *Chain) GetSignatureNode(certHash string) *Node {
 	return c.signaturesByCertHash[certHash]
 }
 
+func (c *Chain) GetSignatureNodeByRecordID(recordID string) *Node {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.signaturesByRecordID[recordID]
+}
+
 func (c *Chain) TraverseForward(fn func(*Node) error) error {
 	c.mu.RLock()
 	nodes := make([]*Node, 0, c.length)

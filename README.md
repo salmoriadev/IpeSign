@@ -78,7 +78,7 @@ Sign:
 curl -s \
   -F pdf=@/path/file.pdf \
   -F policy_id=participation-v1 \
-  http://localhost:8080/v1/sign | jq
+  http://localhost:8080/v1/documents/sign | tee sign.json | jq
 ```
 
 Verify:
@@ -91,8 +91,20 @@ curl -s \
   -F pdf=@/path/file.pdf \
   --form-string certificate_pem="$CERT" \
   -F signature_base64="$SIG" \
-  http://localhost:8080/v1/verify | jq
+  http://localhost:8080/v1/documents/verify | jq
 ```
+
+Get a record:
+
+```bash
+RECORD=$(jq -r '.recordId' sign.json)
+curl -s http://localhost:8080/v1/records/$RECORD | jq
+```
+
+Legacy compatibility:
+
+- `POST /v1/sign` remains as an alias to `POST /v1/documents/sign`
+- `POST /v1/verify` remains as an alias to `POST /v1/documents/verify`
 
 ## Persistence
 
@@ -115,9 +127,9 @@ go run ./cmd/ipesign sign /path/file.pdf
 
 Team context files:
 
-- [CONTEXT.md](/home/arthursalmoria/IpeSign/CONTEXT.md)
-- [apps/api/CONTEXT.md](/home/arthursalmoria/IpeSign/apps/api/CONTEXT.md)
-- [apps/web/CONTEXT.md](/home/arthursalmoria/IpeSign/apps/web/CONTEXT.md)
+- [CONTEXT.md](/home/mathiasppetry/projetos/IpeSign/CONTEXT.md)
+- [apps/api/CONTEXT.md](/home/mathiasppetry/projetos/IpeSign/apps/api/CONTEXT.md)
+- [apps/web/CONTEXT.md](/home/mathiasppetry/projetos/IpeSign/apps/web/CONTEXT.md)
 
 ## Repository Layout
 
@@ -159,5 +171,6 @@ data/                     persisted CA and ledger state
 
 - `cmd/ipesign` is the current operator-friendly CLI
 - `apps/api/cmd/server` is the web API entrypoint
-- `internal/api` is still the current HTTP implementation reused by both CLI and API entrypoint
+- `apps/api/http` is the public HTTP transport layer
+- `internal/api` is the reusable application layer used by CLI and HTTP
 - `internal/authority`, `internal/ledger`, and `internal/persist` are the main backend core packages

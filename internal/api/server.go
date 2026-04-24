@@ -5,8 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -32,14 +30,6 @@ type Server struct {
 type Config struct {
 	DataDir     string
 	DatabaseURL string
-}
-
-type summaryResponse struct {
-	Status        string `json:"status"`
-	IssuerID      string `json:"issuerId"`
-	IssuerName    string `json:"issuerName"`
-	ChainBlocks   int    `json:"chainBlocks"`
-	LastBlockHash string `json:"lastBlockHash,omitempty"`
 }
 
 type SignResult struct {
@@ -97,189 +87,6 @@ func NewServer(cfg Config) (*Server, error) {
 	}
 
 	return bootstrapServer(store)
-}
-
-func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/health", s.handleHealth)
-	mux.HandleFunc("/v1/ca", s.handleCA)
-	mux.HandleFunc("/v1/sign", s.handleSign)
-	mux.HandleFunc("/v1/verify", s.handleVerify)
-	mux.HandleFunc("/v1/chain/walk", s.handleWalk)
-	mux.HandleFunc("/v1/chain/verify", s.handleChainVerify)
-	return mux
-}
-
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
-	report, err := s.chain.Verify()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	writeJSON(w, http.StatusOK, summaryResponse{
-		Status:        "ok",
-		IssuerID:      s.authority.IssuerID(),
-		IssuerName:    s.authority.IssuerName(),
-		ChainBlocks:   report.BlocksVerified,
-		LastBlockHash: report.LastBlockHash,
-	})
-}
-
-func (s *Server) handleCA(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"issuerId":          s.authority.IssuerID(),
-		"issuerName":        s.authority.IssuerName(),
-		"caCertificate":     s.authority.CertificatePEM(),
-		"caCertificateHash": s.authority.CertificateHash(),
-		"caPublicKeyHash":   s.authority.PublicKeyHash(),
-	})
-}
-
-func (s *Server) handleSign(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
-	pdfBytes, filename, policyID, err := readPDFUpload(r)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	result, err := s.SignPDF(pdfBytes, filename, policyID)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	writeJSON(w, http.StatusOK, result)
-}
-
-func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
-	pdfBytes, _, _, err := readPDFUpload(r)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	certificatePEM := r.FormValue("certificate_pem")
-	signatureBase64 := r.FormValue("signature_base64")
-	result, err := s.VerifyPDF(pdfBytes, certificatePEM, signatureBase64)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	writeJSON(w, http.StatusOK, result)
-}
-
-func (s *Server) handleWalk(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
-	direction := strings.ToLower(r.URL.Query().Get("direction"))
-	if direction == "" {
-		direction = "forward"
-	}
-
-	blocks := make([]map[string]any, 0, s.chain.Len())
-	appendNode := func(node *localchain.Node) error {
-		blocks = append(blocks, map[string]any{
-			"index":       node.Block.Index,
-			"eventType":   node.Block.EventType,
-			"blockHash":   node.Block.BlockHash,
-			"prevHash":    node.Block.PrevHash,
-			"timestamp":   node.Block.Timestamp,
-			"payloadHash": node.Block.PayloadHash,
-		})
-		return nil
-	}
-
-	var err error
-	if direction == "reverse" {
-		err = s.chain.TraverseBackward(appendNode)
-	} else {
-		err = s.chain.TraverseForward(appendNode)
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"direction": direction,
-		"blocks":    blocks,
-	})
-}
-
-func (s *Server) handleChainVerify(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
-	report, err := s.chain.Verify()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	writeJSON(w, http.StatusOK, report)
-}
-
-func readPDFUpload(r *http.Request) ([]byte, string, string, error) {
-	if err := r.ParseMultipartForm(maxPDFSize); err != nil {
-		return nil, "", "", fmt.Errorf("parse multipart form: %w", err)
-	}
-
-	file, header, err := r.FormFile("pdf")
-	if err != nil {
-		return nil, "", "", fmt.Errorf("pdf file is required")
-	}
-	defer file.Close()
-
-	pdfBytes, err := io.ReadAll(io.LimitReader(file, maxPDFSize+1))
-	if err != nil {
-		return nil, "", "", fmt.Errorf("read pdf: %w", err)
-	}
-
-	if len(pdfBytes) == 0 {
-		return nil, "", "", fmt.Errorf("pdf is empty")
-	}
-
-	if len(pdfBytes) > maxPDFSize {
-		return nil, "", "", fmt.Errorf("pdf exceeds 20MB limit")
-	}
-
-	if err := validatePDFBytes(pdfBytes); err != nil {
-		return nil, "", "", err
-	}
-
-	policyID := r.FormValue("policy_id")
-	if policyID == "" {
-		policyID = DefaultPolicyID
-	}
-
-	return pdfBytes, header.Filename, policyID, nil
 }
 
 func looksLikePDF(raw []byte) bool {
@@ -574,16 +381,4 @@ func nextRecordSequence(chain *localchain.Chain) uint64 {
 	})
 
 	return max
-}
-
-func writeJSON(w http.ResponseWriter, status int, payload any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
-}
-
-func writeError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]any{
-		"error": message,
-	})
 }

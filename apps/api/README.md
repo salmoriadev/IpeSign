@@ -1,6 +1,6 @@
 # apps/api
 
-This folder is prepared for the web-facing backend.
+This folder is the web-facing backend for the public IpeSign API.
 
 ## Intended Structure
 
@@ -23,7 +23,17 @@ This folder is prepared for the web-facing backend.
 - `GET /v1/records/:recordId`
 - `GET /v1/ca`
 - `GET /v1/health`
+- `GET /v1/chain/walk`
 - `GET /v1/chain/verify`
+
+## Compatibility
+
+The canonical contract lives in `openapi/openapi.yaml`.
+
+Legacy routes are still available for compatibility:
+
+- `POST /v1/sign`
+- `POST /v1/verify`
 
 ## Environment
 

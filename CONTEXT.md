@@ -72,12 +72,12 @@ Não é um sistema blockchain distribuído. É um ledger institucional auditáve
 ## Layout do repositório
 
 ```text
-apps/api/            estrutura preparada para a API web
+apps/api/            API web pública
 apps/web/            estrutura preparada para o frontend
 packages/contracts/  contratos compartilhados
 
 cmd/ipesign/         CLI atual
-internal/api/        servidor HTTP atual
+internal/api/        camada de aplicação reutilizável
 internal/authority/  AC da Ipê e emissão de certificados
 internal/ledger/     ledger local encadeado por hash
 internal/persist/    persistência em arquivo e PostgreSQL
