@@ -4,7 +4,7 @@
 *.local
 
 # Binários e Build
-ipesign
+/ipesign
 tmp/
 data/
 

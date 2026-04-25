@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -41,6 +42,8 @@ func main() {
 		err = runVerify(os.Args[2:])
 	case "walk":
 		err = runWalk(os.Args[2:])
+	case "extract":
+		err = runExtract(os.Args[2:])
 	case "help", "-h", "--help":
 		usage()
 		return
@@ -377,6 +380,57 @@ func runWalk(args []string) error {
 	return chain.TraverseForward(printNode)
 }
 
+func runExtract(args []string) error {
+	fs := flag.NewFlagSet("extract", flag.ContinueOnError)
+	outCert := fs.String("cert", "certificate.pem", "output certificate path")
+	outSig := fs.String("sig", "signature.b64", "output signature base64 path")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	if fs.NArg() != 1 {
+		return fmt.Errorf("usage: ipesign extract [--cert cert.pem] [--sig sig.b64] /path/signed.pdf")
+	}
+
+	pdfPath := fs.Arg(0)
+	pdfBytes, err := os.ReadFile(pdfPath)
+	if err != nil {
+		return fmt.Errorf("read pdf: %w", err)
+	}
+
+	startMarker := []byte("\n%%IPESIGN_SIGNATURE_START%%\n")
+	endMarker := []byte("\n%%IPESIGN_SIGNATURE_END%%\n")
+
+	startIdx := bytes.LastIndex(pdfBytes, startMarker)
+	endIdx := bytes.LastIndex(pdfBytes, endMarker)
+
+	if startIdx == -1 || endIdx == -1 || startIdx >= endIdx {
+		return fmt.Errorf("no embedded signature found in PDF")
+	}
+
+	jsonBytes := pdfBytes[startIdx+len(startMarker) : endIdx]
+
+	var sidecar core.SignResult
+	if err := json.Unmarshal(jsonBytes, &sidecar); err != nil {
+		return fmt.Errorf("invalid embedded signature json: %w", err)
+	}
+
+	if err := os.WriteFile(*outCert, []byte(sidecar.CertificatePEM), 0644); err != nil {
+		return fmt.Errorf("write certificate: %w", err)
+	}
+
+	if err := os.WriteFile(*outSig, []byte(sidecar.SignatureBase64), 0644); err != nil {
+		return fmt.Errorf("write signature: %w", err)
+	}
+
+	fmt.Printf("Extracted Certificate: %s\n", *outCert)
+	fmt.Printf("Extracted Signature: %s\n", *outSig)
+	fmt.Println("\nTo inspect the certificate with OpenSSL:")
+	fmt.Printf("  openssl x509 -in %s -text -noout\n", *outCert)
+	
+	return nil
+}
+
 func writeBundle(path string, bundle bundleFile) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("create bundle directory: %w", err)
@@ -434,7 +488,8 @@ func usage() {
 	fmt.Println("usage:")
 	fmt.Println("  ipesign server [--addr :8080] [--database-url $DATABASE_URL]")
 	fmt.Println("  ipesign sign   [/path/file.pdf] [--database-url $DATABASE_URL]")
-	fmt.Println("  ipesign verify [/path/file.pdf] [--database-url $DATABASE_URL]")
+	fmt.Println("  ipesign verify [/path/signed.pdf] [--database-url $DATABASE_URL]")
+	fmt.Println("  ipesign extract [/path/signed.pdf] [--cert out.pem] [--sig out.b64]")
 	fmt.Println("  ipesign demo   [--out ./data/demo-chain.json]")
 	fmt.Println("  ipesign verify [--bundle ./data/demo-chain.json]")
 	fmt.Println("  ipesign walk   [--bundle ./data/demo-chain.json] [--reverse]")
