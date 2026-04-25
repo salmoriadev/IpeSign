@@ -321,6 +321,13 @@ func (c *Chain) GetSignatureNode(certHash string) *Node {
 	return c.signaturesByCertHash[certHash]
 }
 
+func (c *Chain) GetSignatureNodeByRecordID(recordID string) *Node {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.signaturesByRecordID[recordID]
+}
+
 func (c *Chain) TraverseForward(fn func(*Node) error) error {
 	c.mu.RLock()
 	nodes := make([]*Node, 0, c.length)
@@ -473,14 +480,7 @@ func (c *Chain) appendEventLocked(eventType string, payload any) (*Node, error) 
 	c.length++
 
 	if err := c.indexNodeLocked(node); err != nil {
-		if node.prev != nil {
-			node.prev.next = nil
-		} else {
-			c.head = nil
-		}
-
-		c.tail = node.prev
-		c.length--
+		c.rollbackAppendLocked(node)
 		return nil, err
 	}
 
@@ -499,52 +499,15 @@ func (c *Chain) verifyLocked() (*VerificationReport, *ledgerState, error) {
 
 	var previous *Node
 	for current := c.head; current != nil; current = current.next {
-		block := current.Block
-
-		if previous == nil {
-			if current.prev != nil {
-				return nil, nil, fmt.Errorf("%w: genesis prev pointer must be nil", ErrVerificationFailed)
-			}
-
-			if block.Index != 0 {
-				return nil, nil, fmt.Errorf("%w: genesis index must be zero", ErrVerificationFailed)
-			}
-
-			if block.PrevHash != "" {
-				return nil, nil, fmt.Errorf("%w: genesis prev hash must be empty", ErrVerificationFailed)
-			}
-		} else {
-			if current.prev != previous || previous.next != current {
-				return nil, nil, fmt.Errorf("%w: linked list pointers are inconsistent at block %d", ErrVerificationFailed, block.Index)
-			}
-
-			if block.Index != previous.Block.Index+1 {
-				return nil, nil, fmt.Errorf("%w: invalid index progression at block %d", ErrVerificationFailed, block.Index)
-			}
-
-			if block.PrevHash != previous.Block.BlockHash {
-				return nil, nil, fmt.Errorf("%w: prev hash mismatch at block %d", ErrVerificationFailed, block.Index)
-			}
+		if err := verifyNodeLink(previous, current); err != nil {
+			return nil, nil, err
 		}
 
-		if actual := hashPayload(block.Payload); actual != block.PayloadHash {
-			return nil, nil, fmt.Errorf("%w: payload hash mismatch at block %d", ErrVerificationFailed, block.Index)
+		if err := c.verifyNodeIntegrity(current); err != nil {
+			return nil, nil, err
 		}
 
-		if actual := computeBlockHash(block); actual != block.BlockHash {
-			return nil, nil, fmt.Errorf("%w: block hash mismatch at block %d", ErrVerificationFailed, block.Index)
-		}
-
-		signature, err := base64.StdEncoding.DecodeString(block.LedgerSignature)
-		if err != nil {
-			return nil, nil, fmt.Errorf("%w: invalid block signature encoding at block %d", ErrVerificationFailed, block.Index)
-		}
-
-		if !ed25519.Verify(c.verifyKey, []byte(block.BlockHash), signature) {
-			return nil, nil, fmt.Errorf("%w: invalid block signature at block %d", ErrVerificationFailed, block.Index)
-		}
-
-		if err := applyBlockToState(state, block); err != nil {
+		if err := applyBlockToState(state, current.Block); err != nil {
 			return nil, nil, fmt.Errorf("%w: %v", ErrVerificationFailed, err)
 		}
 
@@ -565,186 +528,61 @@ func (c *Chain) verifyLocked() (*VerificationReport, *ledgerState, error) {
 
 	return report, state, nil
 }
+type nodeIndexer func(*Chain, *Node) error
 
-func (c *Chain) validateTransitionLocked(eventType string, raw json.RawMessage) error {
-	switch eventType {
-	case EventTypeGenesis:
-		if c.length != 0 {
-			return ErrGenesisAlreadyExists
-		}
-	case EventTypeIssuerRegistered:
-		payload, err := decodePayload[IssuerRegisteredPayload](raw)
+var nodeIndexers = map[string]nodeIndexer{
+	EventTypeGenesis: func(_ *Chain, _ *Node) error { return nil },
+	EventTypeIssuerRegistered: func(c *Chain, node *Node) error {
+		payload, err := decodePayload[IssuerRegisteredPayload](node.Block.Payload)
 		if err != nil {
-			return fmt.Errorf("%w: %v", ErrInvalidPayload, err)
-		}
-
-		if payload.IssuerID == "" || payload.Name == "" {
-			return fmt.Errorf("%w: issuerId and name are required", ErrInvalidPayload)
-		}
-
-		if _, exists := c.issuers[payload.IssuerID]; exists {
-			return ErrIssuerAlreadyExists
-		}
-	case EventTypeCertificateIssued:
-		payload, err := decodePayload[CertificateIssuedPayload](raw)
-		if err != nil {
-			return fmt.Errorf("%w: %v", ErrInvalidPayload, err)
-		}
-
-		if err := validateCertificatePayload(payload); err != nil {
 			return err
 		}
-
-		if _, exists := c.issuers[payload.IssuerID]; !exists {
-			return ErrIssuerNotFound
-		}
-
-		if _, exists := c.certificates[payload.CertHash]; exists {
-			return ErrCertificateAlreadyExists
-		}
-	case EventTypeSignatureRegistered:
-		payload, err := decodePayload[SignatureRegisteredPayload](raw)
+		c.issuers[payload.IssuerID] = node
+		return nil
+	},
+	EventTypeCertificateIssued: func(c *Chain, node *Node) error {
+		payload, err := decodePayload[CertificateIssuedPayload](node.Block.Payload)
 		if err != nil {
-			return fmt.Errorf("%w: %v", ErrInvalidPayload, err)
-		}
-
-		if err := validateSignaturePayload(payload); err != nil {
 			return err
 		}
-
-		certNode, certExists := c.certificates[payload.CertHash]
-		if !certExists {
-			return ErrCertificateNotFound
-		}
-
-		if _, revoked := c.revokedCertificates[payload.CertHash]; revoked {
-			return ErrCertificateRevoked
-		}
-
-		if _, exists := c.signaturesByRecordID[payload.RecordID]; exists {
-			return ErrSignatureAlreadyExists
-		}
-
-		certPayload, err := decodePayload[CertificateIssuedPayload](certNode.Block.Payload)
+		c.certificates[payload.CertHash] = node
+		return nil
+	},
+	EventTypeSignatureRegistered: func(c *Chain, node *Node) error {
+		payload, err := decodePayload[SignatureRegisteredPayload](node.Block.Payload)
 		if err != nil {
-			return fmt.Errorf("%w: %v", ErrInvalidPayload, err)
+			return err
 		}
-
-		if certPayload.SingleUse {
-			if _, exists := c.signaturesByCertHash[payload.CertHash]; exists {
-				return ErrCertificateAlreadyUsed
-			}
-		}
-
-		if certPayload.DocumentHash != payload.DocumentHash {
-			return fmt.Errorf("%w: document hash mismatch with certificate", ErrInvalidPayload)
-		}
-
-		if certPayload.IssuerID != payload.IssuerID {
-			return fmt.Errorf("%w: issuer mismatch with certificate", ErrInvalidPayload)
-		}
-
-		if certPayload.PolicyID != payload.PolicyID {
-			return fmt.Errorf("%w: policy mismatch with certificate", ErrInvalidPayload)
-		}
-	case EventTypeCertificateRevoked:
-		payload, err := decodePayload[CertificateRevokedPayload](raw)
+		c.signaturesByCertHash[payload.CertHash] = node
+		c.signaturesByRecordID[payload.RecordID] = node
+		return nil
+	},
+	EventTypeCertificateRevoked: func(c *Chain, node *Node) error {
+		payload, err := decodePayload[CertificateRevokedPayload](node.Block.Payload)
 		if err != nil {
-			return fmt.Errorf("%w: %v", ErrInvalidPayload, err)
+			return err
 		}
-
-		if payload.CertHash == "" || payload.Reason == "" {
-			return fmt.Errorf("%w: certHash and reason are required", ErrInvalidPayload)
-		}
-
-		if _, exists := c.certificates[payload.CertHash]; !exists {
-			return ErrCertificateNotFound
-		}
-
-		if _, exists := c.revokedCertificates[payload.CertHash]; exists {
-			return ErrCertificateRevoked
-		}
-	case EventTypeSignatureRevoked:
-		payload, err := decodePayload[SignatureRevokedPayload](raw)
+		c.revokedCertificates[payload.CertHash] = node
+		return nil
+	},
+	EventTypeSignatureRevoked: func(c *Chain, node *Node) error {
+		payload, err := decodePayload[SignatureRevokedPayload](node.Block.Payload)
 		if err != nil {
-			return fmt.Errorf("%w: %v", ErrInvalidPayload, err)
+			return err
 		}
-
-		if payload.RecordID == "" || payload.CertHash == "" || payload.Reason == "" {
-			return fmt.Errorf("%w: recordId, certHash and reason are required", ErrInvalidPayload)
-		}
-
-		signatureNode, exists := c.signaturesByRecordID[payload.RecordID]
-		if !exists {
-			return ErrSignatureNotFound
-		}
-
-		sigPayload, err := decodePayload[SignatureRegisteredPayload](signatureNode.Block.Payload)
-		if err != nil {
-			return fmt.Errorf("%w: %v", ErrInvalidPayload, err)
-		}
-
-		if sigPayload.CertHash != payload.CertHash {
-			return fmt.Errorf("%w: certHash mismatch with signature", ErrInvalidPayload)
-		}
-
-		if _, exists := c.revokedSignaturesByID[payload.RecordID]; exists {
-			return ErrSignatureRevoked
-		}
-	default:
-		return ErrUnknownEventType
-	}
-
-	return nil
+		c.revokedSignaturesByID[payload.RecordID] = node
+		return nil
+	},
 }
 
 func (c *Chain) indexNodeLocked(node *Node) error {
 	c.blocksByHash[node.Block.BlockHash] = node
 
-	switch node.Block.EventType {
-	case EventTypeGenesis:
-		return nil
-	case EventTypeIssuerRegistered:
-		payload, err := decodePayload[IssuerRegisteredPayload](node.Block.Payload)
-		if err != nil {
-			return err
-		}
-
-		c.issuers[payload.IssuerID] = node
-	case EventTypeCertificateIssued:
-		payload, err := decodePayload[CertificateIssuedPayload](node.Block.Payload)
-		if err != nil {
-			return err
-		}
-
-		c.certificates[payload.CertHash] = node
-	case EventTypeSignatureRegistered:
-		payload, err := decodePayload[SignatureRegisteredPayload](node.Block.Payload)
-		if err != nil {
-			return err
-		}
-
-		c.signaturesByCertHash[payload.CertHash] = node
-		c.signaturesByRecordID[payload.RecordID] = node
-	case EventTypeCertificateRevoked:
-		payload, err := decodePayload[CertificateRevokedPayload](node.Block.Payload)
-		if err != nil {
-			return err
-		}
-
-		c.revokedCertificates[payload.CertHash] = node
-	case EventTypeSignatureRevoked:
-		payload, err := decodePayload[SignatureRevokedPayload](node.Block.Payload)
-		if err != nil {
-			return err
-		}
-
-		c.revokedSignaturesByID[payload.RecordID] = node
-	default:
-		return ErrUnknownEventType
+	if indexer, exists := nodeIndexers[node.Block.EventType]; exists {
+		return indexer(c, node)
 	}
 
-	return nil
+	return ErrUnknownEventType
 }
 
 func (c *Chain) rebuildIndexesLocked() error {
@@ -760,145 +598,6 @@ func (c *Chain) rebuildIndexesLocked() error {
 		if err := c.indexNodeLocked(node); err != nil {
 			return err
 		}
-	}
-
-	return nil
-}
-
-func applyBlockToState(state *ledgerState, block Block) error {
-	switch block.EventType {
-	case EventTypeGenesis:
-		return nil
-	case EventTypeIssuerRegistered:
-		payload, err := decodePayload[IssuerRegisteredPayload](block.Payload)
-		if err != nil {
-			return err
-		}
-
-		if payload.IssuerID == "" || payload.Name == "" {
-			return fmt.Errorf("issuerId and name are required")
-		}
-
-		if _, exists := state.issuers[payload.IssuerID]; exists {
-			return ErrIssuerAlreadyExists
-		}
-
-		state.issuers[payload.IssuerID] = payload
-	case EventTypeCertificateIssued:
-		payload, err := decodePayload[CertificateIssuedPayload](block.Payload)
-		if err != nil {
-			return err
-		}
-
-		if err := validateCertificatePayload(payload); err != nil {
-			return err
-		}
-
-		if _, exists := state.issuers[payload.IssuerID]; !exists {
-			return ErrIssuerNotFound
-		}
-
-		if _, exists := state.certificates[payload.CertHash]; exists {
-			return ErrCertificateAlreadyExists
-		}
-
-		state.certificates[payload.CertHash] = certificateState{Payload: payload}
-	case EventTypeSignatureRegistered:
-		payload, err := decodePayload[SignatureRegisteredPayload](block.Payload)
-		if err != nil {
-			return err
-		}
-
-		if err := validateSignaturePayload(payload); err != nil {
-			return err
-		}
-
-		certState, exists := state.certificates[payload.CertHash]
-		if !exists {
-			return ErrCertificateNotFound
-		}
-
-		if certState.Revoked {
-			return ErrCertificateRevoked
-		}
-
-		if _, exists := state.signaturesByRecordID[payload.RecordID]; exists {
-			return ErrSignatureAlreadyExists
-		}
-
-		if certState.Payload.SingleUse && state.usageCountByCertHash[payload.CertHash] > 0 {
-			return ErrCertificateAlreadyUsed
-		}
-
-		if certState.Payload.DocumentHash != payload.DocumentHash {
-			return fmt.Errorf("%w: document hash mismatch with certificate", ErrInvalidPayload)
-		}
-
-		if certState.Payload.IssuerID != payload.IssuerID {
-			return fmt.Errorf("%w: issuer mismatch with certificate", ErrInvalidPayload)
-		}
-
-		if certState.Payload.PolicyID != payload.PolicyID {
-			return fmt.Errorf("%w: policy mismatch with certificate", ErrInvalidPayload)
-		}
-
-		state.signaturesByCertHash[payload.CertHash] = signatureState{Payload: payload}
-		state.signaturesByRecordID[payload.RecordID] = signatureState{Payload: payload}
-		state.usageCountByCertHash[payload.CertHash]++
-	case EventTypeCertificateRevoked:
-		payload, err := decodePayload[CertificateRevokedPayload](block.Payload)
-		if err != nil {
-			return err
-		}
-
-		if payload.CertHash == "" || payload.Reason == "" {
-			return fmt.Errorf("certHash and reason are required")
-		}
-
-		certState, exists := state.certificates[payload.CertHash]
-		if !exists {
-			return ErrCertificateNotFound
-		}
-
-		if certState.Revoked {
-			return ErrCertificateRevoked
-		}
-
-		certState.Revoked = true
-		state.certificates[payload.CertHash] = certState
-		state.revokedCertificates++
-	case EventTypeSignatureRevoked:
-		payload, err := decodePayload[SignatureRevokedPayload](block.Payload)
-		if err != nil {
-			return err
-		}
-
-		if payload.RecordID == "" || payload.CertHash == "" || payload.Reason == "" {
-			return fmt.Errorf("recordId, certHash and reason are required")
-		}
-
-		sigState, exists := state.signaturesByRecordID[payload.RecordID]
-		if !exists {
-			return ErrSignatureNotFound
-		}
-
-		if sigState.Payload.CertHash != payload.CertHash {
-			return fmt.Errorf("%w: certHash mismatch with signature", ErrInvalidPayload)
-		}
-
-		if sigState.Revoked {
-			return ErrSignatureRevoked
-		}
-
-		sigState.Revoked = true
-		state.signaturesByRecordID[payload.RecordID] = sigState
-
-		byCert := state.signaturesByCertHash[payload.CertHash]
-		byCert.Revoked = true
-		state.signaturesByCertHash[payload.CertHash] = byCert
-		state.revokedSignatures++
-	default:
-		return ErrUnknownEventType
 	}
 
 	return nil

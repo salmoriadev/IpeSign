@@ -9,13 +9,14 @@ IpeSign é uma aplicação para assinatura e verificação de PDFs com:
 - chave privada temporária descartada após o uso
 - ledger append-only encadeado por hash
 - persistência local em arquivo ou em PostgreSQL
+- chaves persistidas protegidas por `IPESIGN_MASTER_KEY`
 
 ## Modelo atual
 
 O sistema hoje opera com uma única instituição emissora:
 
 - `issuerId = ipe`
-- uma AC da Ipê persistida entre reinícios
+- uma cadeia `root CA -> issuing CA` da Ipê persistida entre reinícios
 - uma blockchain local assinada pelo próprio sistema
 
 O modelo atual é de:
@@ -34,7 +35,7 @@ Não é um sistema blockchain distribuído. É um ledger institucional auditáve
 1. Ler PDF real
 2. Calcular `SHA-256` do PDF
 3. Gerar chave efêmera `ed25519`
-4. Emitir certificado X.509 temporário assinado pela AC da Ipê
+4. Emitir certificado X.509 temporário assinado pela issuing CA da Ipê
 5. Registrar `CERTIFICATE_ISSUED` no ledger
 6. Assinar o hash do PDF
 7. Descartar a chave privada efêmera
@@ -46,7 +47,7 @@ Não é um sistema blockchain distribuído. É um ledger institucional auditáve
 1. Ler PDF real
 2. Recalcular `SHA-256` do PDF
 3. Validar assinatura com a chave pública do certificado
-4. Validar se o certificado foi emitido pela AC da Ipê
+4. Validar se o certificado foi emitido pela cadeia confiável da Ipê
 5. Ler o `documentHash` embutido no certificado
 6. Consultar o ledger
 7. Confirmar `singleUseConfirmed`
@@ -55,10 +56,12 @@ Não é um sistema blockchain distribuído. É um ledger institucional auditáve
 
 - CLI para `sign` e `verify`
 - servidor HTTP básico
+- serviço de aplicação reutilizável em `internal/core`
 - persistência em arquivo
 - persistência opcional em PostgreSQL
 - linked list da cadeia com verificação forward/backward
 - emissão de certificado efêmero real
+- rejeição de certificado expirado
 
 ## O que ainda não está pronto
 
@@ -77,6 +80,7 @@ apps/web/            estrutura preparada para o frontend
 packages/contracts/  contratos compartilhados
 
 cmd/ipesign/         CLI atual
+internal/core/       serviço de aplicação estável
 internal/api/        servidor HTTP atual
 internal/authority/  AC da Ipê e emissão de certificados
 internal/ledger/     ledger local encadeado por hash
@@ -90,5 +94,5 @@ O core criptográfico e o ledger já existem e devem ser reutilizados.
 Para a próxima fase:
 
 - frontend fala com `apps/api`
-- `apps/api` chama o core em `internal/`
+- `apps/api` chama o serviço em `internal/core`
 - evitar duplicar regra de negócio no frontend ou na camada HTTP

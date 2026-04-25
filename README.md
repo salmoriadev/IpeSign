@@ -6,6 +6,8 @@ IpeSign already has a working Go core for:
 - hash signing for real PDFs
 - local append-only ledger
 - persistence to file or PostgreSQL
+- encrypted private key persistence
+- root CA plus issuing CA chain
 - CLI signing and verification
 
 The repository is also prepared for web development with dedicated folders for:
@@ -22,6 +24,7 @@ What works today:
 - verify the same PDF by path
 - persist the CA and ledger between executions
 - expose the same flow over HTTP
+- expose a reusable application service in `internal/core`
 
 What does not exist yet:
 
@@ -36,12 +39,14 @@ What does not exist yet:
 Sign a PDF:
 
 ```bash
+export IPESIGN_MASTER_KEY='change-this'
 go run ./cmd/ipesign sign /path/file.pdf
 ```
 
 Verify the same PDF:
 
 ```bash
+export IPESIGN_MASTER_KEY='change-this'
 go run ./cmd/ipesign verify /path/file.pdf
 ```
 
@@ -63,6 +68,7 @@ If verification is successful, the command returns a JSON result containing:
 Run the API:
 
 ```bash
+export IPESIGN_MASTER_KEY='change-this'
 go run ./apps/api/cmd/server
 ```
 
@@ -78,7 +84,7 @@ Sign:
 curl -s \
   -F pdf=@/path/file.pdf \
   -F policy_id=participation-v1 \
-  http://localhost:8080/v1/sign | jq
+  http://localhost:8080/v1/documents/sign | jq
 ```
 
 Verify:
@@ -91,7 +97,13 @@ curl -s \
   -F pdf=@/path/file.pdf \
   --form-string certificate_pem="$CERT" \
   -F signature_base64="$SIG" \
-  http://localhost:8080/v1/verify | jq
+  http://localhost:8080/v1/documents/verify | jq
+```
+
+Record lookup:
+
+```bash
+curl -s http://localhost:8080/v1/records/pdfsig-1 | jq
 ```
 
 ## Persistence
@@ -99,6 +111,7 @@ curl -s \
 Default behavior:
 
 - file-based persistence in `./data`
+- private keys sealed with `IPESIGN_MASTER_KEY`
 
 Optional behavior:
 
@@ -108,6 +121,7 @@ Examples:
 
 ```bash
 export DATABASE_URL='postgresql://USER:PASSWORD@HOST:5432/DBNAME?sslmode=disable'
+export IPESIGN_MASTER_KEY='change-this'
 go run ./cmd/ipesign sign /path/file.pdf
 ```
 
@@ -144,6 +158,7 @@ packages/
     schemas/              JSON schema, zod, or validation contracts
 
 cmd/ipesign/              current CLI
+internal/core/            stable application service for CLI and API
 internal/                 current Go core implementation
 data/                     persisted CA and ledger state
 ```
@@ -151,13 +166,22 @@ data/                     persisted CA and ledger state
 ## Current Recommendation
 
 - keep the cryptographic and ledger core in `internal/`
+- consume the application service from `internal/core`
 - build the future web API in `apps/api/`
 - build the future frontend in `apps/web/`
 - place shared request/response contracts in `packages/contracts/`
+
+## Security Notes
+
+- new installations create a `root CA -> issuing CA -> document certificate` chain
+- document verification now rejects expired certificates
+- persisted private keys are encrypted at rest using `IPESIGN_MASTER_KEY`
+- existing plaintext state may still load, but new writes use sealed key blobs
 
 ## Repository Notes
 
 - `cmd/ipesign` is the current operator-friendly CLI
 - `apps/api/cmd/server` is the web API entrypoint
-- `internal/api` is still the current HTTP implementation reused by both CLI and API entrypoint
-- `internal/authority`, `internal/ledger`, and `internal/persist` are the main backend core packages
+- `internal/core` is the stable application layer for signing, verifying, record lookup and ledger queries
+- `internal/api` is the thin HTTP adapter currently reused by `apps/api/cmd/server`
+- `internal/authority`, `internal/ledger`, and `internal/persist` remain the main backend core packages

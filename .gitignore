@@ -1,0 +1,19 @@
+# Ambiente
+.env
+.env.*
+*.local
+
+# Binários e Build
+ipesign
+tmp/
+data/
+
+# Go
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out

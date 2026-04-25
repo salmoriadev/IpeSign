@@ -27,14 +27,19 @@ type Config struct {
 }
 
 type Authority struct {
-	issuerID      string
-	issuerName    string
-	clock         func() time.Time
-	cert          *x509.Certificate
-	certPEM       string
-	key           ed25519.PrivateKey
-	certHash      string
-	publicKeyHash string
+	issuerID          string
+	issuerName        string
+	clock             func() time.Time
+	rootCert          *x509.Certificate
+	rootCertPEM       string
+	rootKey           ed25519.PrivateKey
+	cert              *x509.Certificate
+	certPEM           string
+	key               ed25519.PrivateKey
+	rootCertHash      string
+	rootPublicKeyHash string
+	certHash          string
+	publicKeyHash     string
 }
 
 type IssuedDocumentCertificate struct {
@@ -44,6 +49,44 @@ type IssuedDocumentCertificate struct {
 	PublicKeyHash  string
 	PrivateKey     ed25519.PrivateKey
 	PublicKey      ed25519.PublicKey
+}
+
+func createCertificateHelper(template, parent *x509.Certificate, pubKey ed25519.PublicKey, privKey ed25519.PrivateKey) (*x509.Certificate, string, string, error) {
+	rawCert, err := x509.CreateCertificate(rand.Reader, template, parent, pubKey, privKey)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("create certificate: %w", err)
+	}
+
+	cert, err := x509.ParseCertificate(rawCert)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("parse certificate: %w", err)
+	}
+
+	certPEM := string(pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: rawCert,
+	}))
+
+	return cert, certPEM, cryptoutil.SHA256Tagged(rawCert), nil
+}
+
+func parseCertificateAndHash(pemBytes []byte) (*x509.Certificate, string, string, error) {
+	block, _ := pem.Decode(pemBytes)
+	if block == nil {
+		return nil, "", "", fmt.Errorf("invalid PEM certificate")
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("parse certificate: %w", err)
+	}
+
+	publicKeyHash, err := cryptoutil.HashPublicKey(cert.PublicKey)
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	return cert, cryptoutil.SHA256Tagged(cert.Raw), publicKeyHash, nil
 }
 
 func New(cfg Config) (*Authority, error) {
@@ -61,61 +104,87 @@ func New(cfg Config) (*Authority, error) {
 		cfg.IssuerName = "Ipe"
 	}
 
-	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	rootPublicKey, rootPrivateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("generate authority key: %w", err)
 	}
 
-	serialNumber, err := randomSerial()
+	rootSerialNumber, err := randomSerial()
 	if err != nil {
 		return nil, fmt.Errorf("generate authority serial: %w", err)
 	}
 
 	now := cfg.Clock()
-	template := &x509.Certificate{
-		SerialNumber:          serialNumber,
+	rootTemplate := &x509.Certificate{
+		SerialNumber:          rootSerialNumber,
 		Subject:               pkix.Name{CommonName: cfg.IssuerName + " Root CA", Organization: []string{cfg.IssuerName}},
 		NotBefore:             now.Add(-5 * time.Minute),
 		NotAfter:              now.Add(10 * 365 * 24 * time.Hour),
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign | x509.KeyUsageDigitalSignature,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
+		MaxPathLen:            1,
+	}
+
+	rootCert, rootCertPEM, rootCertHash, err := createCertificateHelper(rootTemplate, rootTemplate, rootPublicKey, rootPrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("create root certificate: %w", err)
+	}
+
+	rootPublicKeyHash, err := cryptoutil.HashPublicKey(rootPublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	issuingPublicKey, issuingPrivateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("generate issuing authority key: %w", err)
+	}
+
+	issuingSerialNumber, err := randomSerial()
+	if err != nil {
+		return nil, fmt.Errorf("generate issuing authority serial: %w", err)
+	}
+
+	issuingTemplate := &x509.Certificate{
+		SerialNumber:          issuingSerialNumber,
+		Subject:               pkix.Name{CommonName: cfg.IssuerName + " Issuing CA", Organization: []string{cfg.IssuerName}},
+		NotBefore:             now.Add(-5 * time.Minute),
+		NotAfter:              now.Add(2 * 365 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign | x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
 		MaxPathLenZero:        true,
 	}
 
-	rawCert, err := x509.CreateCertificate(rand.Reader, template, template, publicKey, privateKey)
+	issuingCert, issuingCertPEM, issuingCertHash, err := createCertificateHelper(issuingTemplate, rootCert, issuingPublicKey, rootPrivateKey)
 	if err != nil {
-		return nil, fmt.Errorf("create authority certificate: %w", err)
+		return nil, fmt.Errorf("create issuing certificate: %w", err)
 	}
 
-	cert, err := x509.ParseCertificate(rawCert)
-	if err != nil {
-		return nil, fmt.Errorf("parse authority certificate: %w", err)
-	}
-
-	certPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: rawCert,
-	})
-
-	publicKeyHash, err := cryptoutil.HashPublicKey(publicKey)
+	issuingPublicKeyHash, err := cryptoutil.HashPublicKey(issuingPublicKey)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Authority{
-		issuerID:      cfg.IssuerID,
-		issuerName:    cfg.IssuerName,
-		clock:         cfg.Clock,
-		cert:          cert,
-		certPEM:       string(certPEM),
-		key:           privateKey,
-		certHash:      cryptoutil.SHA256Tagged(rawCert),
-		publicKeyHash: publicKeyHash,
+		issuerID:          cfg.IssuerID,
+		issuerName:        cfg.IssuerName,
+		clock:             cfg.Clock,
+		rootCert:          rootCert,
+		rootCertPEM:       rootCertPEM,
+		rootKey:           rootPrivateKey,
+		cert:              issuingCert,
+		certPEM:           issuingCertPEM,
+		key:               issuingPrivateKey,
+		rootCertHash:      rootCertHash,
+		rootPublicKeyHash: rootPublicKeyHash,
+		certHash:          issuingCertHash,
+		publicKeyHash:     issuingPublicKeyHash,
 	}, nil
 }
 
-func Load(cfg Config, certPEM []byte, keyPEM []byte) (*Authority, error) {
+func Load(cfg Config, rootCertPEM []byte, rootKeyPEM []byte, certPEM []byte, keyPEM []byte) (*Authority, error) {
 	if cfg.Clock == nil {
 		cfg.Clock = func() time.Time {
 			return time.Now().UTC()
@@ -135,30 +204,44 @@ func Load(cfg Config, certPEM []byte, keyPEM []byte) (*Authority, error) {
 		return nil, err
 	}
 
-	block, _ := pem.Decode(certPEM)
-	if block == nil {
-		return nil, fmt.Errorf("invalid PEM certificate")
+	cert, certHash, publicKeyHash, err := parseCertificateAndHash(certPEM)
+	if err != nil {
+		return nil, fmt.Errorf("load issuing certificate: %w", err)
 	}
 
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("parse authority certificate: %w", err)
+	var rootCert *x509.Certificate
+	var rootKey ed25519.PrivateKey
+	var rootCertHash string
+	var rootPublicKeyHash string
+
+	if len(rootCertPEM) > 0 {
+		rootCert, rootCertHash, rootPublicKeyHash, err = parseCertificateAndHash(rootCertPEM)
+		if err != nil {
+			return nil, fmt.Errorf("load root certificate: %w", err)
+		}
 	}
 
-	publicKeyHash, err := cryptoutil.HashPublicKey(cert.PublicKey)
-	if err != nil {
-		return nil, err
+	if len(rootKeyPEM) > 0 {
+		rootKey, err = cryptoutil.ParseEd25519PrivateKeyPEM(rootKeyPEM)
+		if err != nil {
+			return nil, fmt.Errorf("parse root authority private key: %w", err)
+		}
 	}
 
 	return &Authority{
-		issuerID:      cfg.IssuerID,
-		issuerName:    cfg.IssuerName,
-		clock:         cfg.Clock,
-		cert:          cert,
-		certPEM:       string(certPEM),
-		key:           key,
-		certHash:      cryptoutil.SHA256Tagged(cert.Raw),
-		publicKeyHash: publicKeyHash,
+		issuerID:          cfg.IssuerID,
+		issuerName:        cfg.IssuerName,
+		clock:             cfg.Clock,
+		rootCert:          rootCert,
+		rootCertPEM:       string(rootCertPEM),
+		rootKey:           rootKey,
+		cert:              cert,
+		certPEM:           string(certPEM),
+		key:               key,
+		rootCertHash:      rootCertHash,
+		rootPublicKeyHash: rootPublicKeyHash,
+		certHash:          certHash,
+		publicKeyHash:     publicKeyHash,
 	}, nil
 }
 
@@ -174,19 +257,49 @@ func (a *Authority) CertificatePEM() string {
 	return a.certPEM
 }
 
+func (a *Authority) RootCertificatePEM() string {
+	return a.rootCertPEM
+}
+
 func (a *Authority) CertificateHash() string {
 	return a.certHash
+}
+
+func (a *Authority) RootCertificateHash() string {
+	return a.rootCertHash
 }
 
 func (a *Authority) PublicKeyHash() string {
 	return a.publicKeyHash
 }
 
+func (a *Authority) RootPublicKeyHash() string {
+	return a.rootPublicKeyHash
+}
+
 func (a *Authority) PrivateKeyPEM() ([]byte, error) {
 	return cryptoutil.MarshalEd25519PrivateKeyPEM(a.key)
 }
 
-func (a *Authority) IssueDocumentCertificate(documentHash, policyID string) (*IssuedDocumentCertificate, error) {
+func (a *Authority) RootPrivateKeyPEM() ([]byte, error) {
+	if len(a.rootKey) == 0 {
+		return nil, nil
+	}
+
+	return cryptoutil.MarshalEd25519PrivateKeyPEM(a.rootKey)
+}
+
+type CertificateIdentity struct {
+	CommonName         string
+	EmailAddress       string
+	Organization       string
+	OrganizationalUnit string
+	Country            string
+	Province           string
+	Locality           string
+}
+
+func (a *Authority) IssueDocumentCertificate(documentHash, policyID string, identity CertificateIdentity) (*IssuedDocumentCertificate, error) {
 	if documentHash == "" {
 		return nil, fmt.Errorf("document hash is required")
 	}
@@ -206,9 +319,36 @@ func (a *Authority) IssueDocumentCertificate(documentHash, policyID string) (*Is
 	}
 
 	now := a.clock()
+	
+	subject := pkix.Name{
+		Organization: []string{a.issuerName},
+	}
+	
+	if identity.CommonName != "" {
+		subject.CommonName = identity.CommonName
+	} else {
+		subject.CommonName = "Ipe Single-Use Document Certificate"
+	}
+	
+	if identity.Organization != "" {
+		subject.Organization = append(subject.Organization, identity.Organization)
+	}
+	if identity.OrganizationalUnit != "" {
+		subject.OrganizationalUnit = []string{identity.OrganizationalUnit}
+	}
+	if identity.Country != "" {
+		subject.Country = []string{identity.Country}
+	}
+	if identity.Province != "" {
+		subject.Province = []string{identity.Province}
+	}
+	if identity.Locality != "" {
+		subject.Locality = []string{identity.Locality}
+	}
+
 	template := &x509.Certificate{
 		SerialNumber:          serialNumber,
-		Subject:               pkix.Name{CommonName: "Ipe Single-Use Document Certificate", Organization: []string{a.issuerName}},
+		Subject:               subject,
 		NotBefore:             now.Add(-1 * time.Minute),
 		NotAfter:              now.Add(10 * time.Minute),
 		KeyUsage:              x509.KeyUsageDigitalSignature,
@@ -218,20 +358,14 @@ func (a *Authority) IssueDocumentCertificate(documentHash, policyID string) (*Is
 		ExtraExtensions:       buildExtensions(documentHash, policyID),
 	}
 
-	rawCert, err := x509.CreateCertificate(rand.Reader, template, a.cert, publicKey, a.key)
+	if identity.EmailAddress != "" {
+		template.EmailAddresses = []string{identity.EmailAddress}
+	}
+
+	cert, certPEM, certHash, err := createCertificateHelper(template, a.cert, publicKey, a.key)
 	if err != nil {
 		return nil, fmt.Errorf("create leaf certificate: %w", err)
 	}
-
-	cert, err := x509.ParseCertificate(rawCert)
-	if err != nil {
-		return nil, fmt.Errorf("parse leaf certificate: %w", err)
-	}
-
-	certPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: rawCert,
-	})
 
 	publicKeyHash, err := cryptoutil.HashPublicKey(publicKey)
 	if err != nil {
@@ -240,8 +374,8 @@ func (a *Authority) IssueDocumentCertificate(documentHash, policyID string) (*Is
 
 	return &IssuedDocumentCertificate{
 		Certificate:    cert,
-		CertificatePEM: string(certPEM),
-		CertHash:       cryptoutil.SHA256Tagged(rawCert),
+		CertificatePEM: certPEM,
+		CertHash:       certHash,
 		PublicKeyHash:  publicKeyHash,
 		PrivateKey:     privateKey,
 		PublicKey:      publicKey,
@@ -253,12 +387,28 @@ func (a *Authority) VerifyIssuedCertificate(cert *x509.Certificate) error {
 		return fmt.Errorf("certificate is required")
 	}
 
-	if err := cert.CheckSignatureFrom(a.cert); err != nil {
-		return fmt.Errorf("certificate not issued by authority: %w", err)
-	}
-
 	if cert.IsCA {
 		return fmt.Errorf("leaf certificate cannot be a CA")
+	}
+
+	roots := x509.NewCertPool()
+	intermediates := x509.NewCertPool()
+
+	if a.rootCert != nil {
+		roots.AddCert(a.rootCert)
+		intermediates.AddCert(a.cert)
+	} else {
+		roots.AddCert(a.cert)
+	}
+
+	_, err := cert.Verify(x509.VerifyOptions{
+		Roots:         roots,
+		Intermediates: intermediates,
+		CurrentTime:   a.clock(),
+		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageCodeSigning},
+	})
+	if err != nil {
+		return fmt.Errorf("certificate not trusted by authority: %w", err)
 	}
 
 	return nil

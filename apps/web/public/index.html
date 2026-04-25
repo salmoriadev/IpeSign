@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IpeSign - Assinatura Digital</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .drag-active {
+            border-color: #10b981 !important;
+            background-color: #ecfdf5 !important;
+        }
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans text-gray-800 flex flex-col">
+    <!-- Navbar -->
+    <nav class="bg-white border-b border-gray-200">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center cursor-pointer" onclick="goToLanding()">
+                    <span class="text-2xl font-extrabold text-emerald-600">IpeSign</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div id="navUserArea" class="hidden items-center space-x-4">
+                        <span class="text-sm text-gray-600">Olá, <span id="navUserName" class="font-bold"></span></span>
+                        <button onclick="logout()" class="text-sm text-red-600 hover:text-red-800 font-medium">Sair</button>
+                    </div>
+                    <button id="navLoginBtn" onclick="showLogin()" class="text-sm font-medium text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-4 py-2 rounded-lg transition-colors">
+                        Entrar na Conta
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="flex-grow flex flex-col items-center justify-center p-4">
+        
+        <!-- View: Landing -->
+        <div id="view-landing" class="max-w-4xl w-full text-center py-12">
+            <div class="inline-block bg-emerald-100 text-emerald-800 px-4 py-1.5 rounded-full text-sm font-bold tracking-wide mb-6">
+                PROJETO OPEN SOURCE
+            </div>
+            <h1 class="text-5xl sm:text-6xl font-extrabold text-gray-900 mb-6 tracking-tight">Cartório Digital Simplificado</h1>
+            <p class="text-xl text-gray-500 mb-12 max-w-2xl mx-auto leading-relaxed">Assine e audite contratos na sua própria máquina usando o modelo <span class="font-semibold text-gray-700">Single-Use Keys</span> apoiado por um ledger Blockchain transparente.</p>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
+                <button onclick="requireAuth('sign')" class="flex flex-col items-center p-10 bg-white border-2 border-emerald-100 rounded-3xl shadow-sm hover:shadow-lg hover:border-emerald-400 transition-all duration-300 group">
+                    <div class="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Assinar PDF</h3>
+                    <p class="text-sm text-gray-500 text-center">Gere um certificado efêmero e embale a assinatura no próprio arquivo.</p>
+                </button>
+
+                <button onclick="requireAuth('verify')" class="flex flex-col items-center p-10 bg-white border-2 border-blue-100 rounded-3xl shadow-sm hover:shadow-lg hover:border-blue-400 transition-all duration-300 group">
+                    <div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-blue-500 group-hover:text-white transition-all">
+                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Verificar PDF</h3>
+                    <p class="text-sm text-gray-500 text-center">Inspecione a criptografia Ed25519 e previna reuso na Blockchain.</p>
+                </button>
+            </div>
+        </div>
+
+        <!-- View: Login -->
+        <div id="view-login" class="hidden max-w-md w-full bg-white p-10 rounded-3xl shadow-lg border border-gray-100 relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-400 to-emerald-600"></div>
+            <div class="text-center mb-10 mt-2">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-50 mb-4">
+                    <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                </div>
+                <h2 class="text-3xl font-bold text-gray-900 tracking-tight">Autenticação</h2>
+                <p class="text-sm text-gray-500 mt-2">Informe sua identidade para assinar.</p>
+            </div>
+            
+            <form id="loginForm" class="space-y-6">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Nome Completo</label>
+                    <input type="text" id="loginName" class="w-full px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors" placeholder="Ex: Arthur Salmoria" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">E-mail Profissional</label>
+                    <input type="email" id="loginEmail" class="w-full px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors" placeholder="Ex: arthur@empresa.com" required>
+                </div>
+                
+                <div class="pt-4">
+                    <button type="submit" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm text-base font-bold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors">
+                        Fazer Login Seguro
+                    </button>
+                    <button type="button" onclick="goToLanding()" class="w-full mt-3 flex justify-center py-3 px-4 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
+                        Cancelar e voltar
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- View: App (Sign/Verify) -->
+        <div id="view-app" class="hidden max-w-4xl w-full">
+            <!-- Tabs -->
+            <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mb-8">
+                <div class="border-b border-gray-100 bg-gray-50/50">
+                    <nav class="flex" aria-label="Tabs">
+                        <button onclick="switchTab('sign')" id="tab-sign" class="w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-emerald-500 text-emerald-600 transition-colors">Assinatura Digital</button>
+                        <button onclick="switchTab('verify')" id="tab-verify" class="w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200 transition-colors">Validador de Documentos</button>
+                    </nav>
+                </div>
+                
+                <div class="p-8 sm:p-12">
+                    <!-- Sign Tab Content -->
+                    <div id="content-sign" class="max-w-xl mx-auto">
+                        <div class="text-center mb-8 bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
+                            <h2 class="text-lg font-bold text-gray-900">Assinando como: <span id="signCurrentName" class="text-emerald-700"></span></h2>
+                            <p id="signCurrentEmail" class="text-sm text-gray-600 font-mono mt-1"></p>
+                        </div>
+                        
+                        <form id="signForm" class="space-y-6">
+                            <div id="signDropzone" class="flex justify-center px-6 pt-12 pb-12 border-2 border-emerald-200 border-dashed rounded-2xl cursor-pointer hover:bg-emerald-50 hover:border-emerald-300 transition-all bg-gray-50/50 group">
+                                <div class="space-y-3 text-center">
+                                    <svg class="mx-auto h-16 w-16 text-emerald-300 group-hover:text-emerald-500 transition-colors" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                    <div class="flex text-base text-gray-600 justify-center">
+                                        <span class="relative bg-transparent rounded-md font-bold text-emerald-600 hover:text-emerald-700 focus-within:outline-none">
+                                            <span>Clique para fazer o upload do PDF</span>
+                                            <input id="signFile" name="signFile" type="file" class="sr-only" accept=".pdf" required>
+                                        </span>
+                                    </div>
+                                    <p class="text-sm text-gray-500" id="signFileName">Ou arraste e solte o arquivo aqui</p>
+                                </div>
+                            </div>
+
+                            <button type="submit" id="signBtn" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-md text-lg font-bold text-white bg-emerald-600 hover:bg-emerald-700 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all duration-200">
+                                Injetar Assinatura Criptográfica
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Verify Tab Content -->
+                    <div id="content-verify" class="hidden max-w-xl mx-auto">
+                        <div class="text-center mb-10">
+                            <h2 class="text-2xl font-bold text-gray-900">Auditoria Pública</h2>
+                            <p class="text-sm text-gray-500 mt-2 leading-relaxed">Inspecione se um documento possui injeção autêntica IpeSign e se não foi vítima de gasto-duplo (reuso) na Blockchain.</p>
+                        </div>
+
+                        <form id="verifyForm" class="space-y-6">
+                            <div id="verifyDropzone" class="flex justify-center px-6 pt-12 pb-12 border-2 border-blue-200 border-dashed rounded-2xl cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-all bg-gray-50/50 group">
+                                <div class="space-y-3 text-center">
+                                    <svg class="mx-auto h-16 w-16 text-blue-300 group-hover:text-blue-500 transition-colors" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                    <div class="flex text-base text-gray-600 justify-center">
+                                        <span class="relative bg-transparent rounded-md font-bold text-blue-600 hover:text-blue-700 focus-within:outline-none">
+                                            <span>Upload do Documento Assinado</span>
+                                            <input id="verifyFile" name="verifyFile" type="file" class="sr-only" accept=".pdf" required>
+                                        </span>
+                                    </div>
+                                    <p class="text-sm text-gray-500" id="verifyFileName">Arquivos com final _signed.pdf</p>
+                                </div>
+                            </div>
+
+                            <button type="submit" id="verifyBtn" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-md text-lg font-bold text-white bg-blue-600 hover:bg-blue-700 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200">
+                                Auditar Documento Agora
+                            </button>
+                        </form>
+
+                        <!-- Verify Result Card -->
+                        <div id="verifyResult" class="hidden mt-8 bg-white border border-gray-200 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                            <div class="flex items-center mb-6">
+                                <div id="verifyStatusIcon" class="flex-shrink-0 mr-4 relative z-10"></div>
+                                <div class="relative z-10">
+                                    <h3 id="verifyStatusTitle" class="text-xl font-bold"></h3>
+                                    <p id="verifyStatusDesc" class="text-sm text-gray-500 mt-1"></p>
+                                </div>
+                            </div>
+                            <div class="space-y-4 text-sm text-gray-600 border-t pt-6 bg-gray-50/50 -mx-6 px-6 -mb-6 pb-6 rounded-b-2xl relative z-10">
+                                <div class="flex justify-between items-center"><span class="font-semibold text-gray-700">Validação da Matemática (Ed25519):</span> <span id="resMath" class="px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider"></span></div>
+                                <div class="flex justify-between items-center"><span class="font-semibold text-gray-700">Ledger Status (Single-Use):</span> <span id="resLedger" class="px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider"></span></div>
+                                <div class="flex justify-between items-center border-t border-dashed pt-4"><span class="font-semibold text-gray-700">Dono do Certificado:</span> <span id="resIdentity" class="font-bold text-gray-900 truncate max-w-[200px] bg-white px-3 py-1 border rounded-md shadow-sm"></span></div>
+                                <div class="flex justify-between items-center mt-2"><span class="font-semibold text-gray-700">Record ID (Blockchain):</span> <span id="resRecordId" class="font-mono text-xs text-gray-500 truncate max-w-[200px]"></span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // State Management
+        let currentUser = JSON.parse(localStorage.getItem('ipesign_user') || 'null');
+        let pendingAction = null; // 'sign' or 'verify'
+
+        // Views Control
+        function hideAllViews() {
+            document.getElementById('view-landing').classList.add('hidden');
+            document.getElementById('view-login').classList.add('hidden');
+            document.getElementById('view-app').classList.add('hidden');
+        }
+
+        function updateNav() {
+            if (currentUser) {
+                document.getElementById('navLoginBtn').classList.add('hidden');
+                document.getElementById('navUserArea').classList.remove('hidden');
+                document.getElementById('navUserArea').classList.add('flex');
+                document.getElementById('navUserName').textContent = currentUser.name.split(' ')[0];
+                document.getElementById('signCurrentName').textContent = currentUser.name;
+                document.getElementById('signCurrentEmail').textContent = currentUser.email;
+            } else {
+                document.getElementById('navLoginBtn').classList.remove('hidden');
+                document.getElementById('navUserArea').classList.add('hidden');
+                document.getElementById('navUserArea').classList.remove('flex');
+            }
+        }
+
+        function goToLanding() {
+            hideAllViews();
+            document.getElementById('view-landing').classList.remove('hidden');
+            updateNav();
+        }
+
+        function showLogin() {
+            hideAllViews();
+            document.getElementById('view-login').classList.remove('hidden');
+        }
+
+        function showApp(tab = 'sign') {
+            hideAllViews();
+            document.getElementById('view-app').classList.remove('hidden');
+            switchTab(tab);
+            updateNav();
+        }
+
+        function requireAuth(action) {
+            pendingAction = action;
+            if (currentUser) {
+                showApp(action);
+            } else {
+                showLogin();
+            }
+        }
+
+        // Tabs Control
+        function switchTab(tabId) {
+            document.getElementById('content-sign').classList.add('hidden');
+            document.getElementById('content-verify').classList.add('hidden');
+            
+            const btnSign = document.getElementById('tab-sign');
+            const btnVerify = document.getElementById('tab-verify');
+            
+            btnSign.className = "w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200 transition-colors";
+            btnVerify.className = "w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200 transition-colors";
+
+            if (tabId === 'sign') {
+                document.getElementById('content-sign').classList.remove('hidden');
+                btnSign.className = "w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-emerald-500 text-emerald-600 transition-colors";
+            } else {
+                document.getElementById('content-verify').classList.remove('hidden');
+                btnVerify.className = "w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-blue-500 text-blue-600 transition-colors";
+            }
+        }
+
+        // Auth Logic (Mock)
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('loginName').value;
+            const email = document.getElementById('loginEmail').value;
+            
+            currentUser = { name, email };
+            localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
+            
+            if (pendingAction) {
+                showApp(pendingAction);
+                pendingAction = null;
+            } else {
+                goToLanding();
+            }
+        });
+
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('ipesign_user');
+            goToLanding();
+        }
+
+        // Setup Drag & Drop handlers
+        function setupDropzone(zoneId, inputId, textId, activeColor) {
+            const dropzone = document.getElementById(zoneId);
+            const input = document.getElementById(inputId);
+            const text = document.getElementById(textId);
+
+            dropzone.addEventListener('click', () => input.click());
+            
+            input.addEventListener('change', (e) => {
+                if (e.target.files.length) {
+                    text.textContent = e.target.files[0].name;
+                    text.classList.add('font-bold', `text-${activeColor}-600`);
+                }
+            });
+
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.classList.add('border-solid', `border-${activeColor}-400`, `bg-${activeColor}-100`);
+                dropzone.classList.remove('border-dashed', `bg-${activeColor}-50/50`);
+            });
+
+            dropzone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('border-solid', `border-${activeColor}-400`, `bg-${activeColor}-100`);
+                dropzone.classList.add('border-dashed', `bg-${activeColor}-50/50`);
+            });
+
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('border-solid', `border-${activeColor}-400`, `bg-${activeColor}-100`);
+                dropzone.classList.add('border-dashed', `bg-${activeColor}-50/50`);
+                
+                if (e.dataTransfer.files.length) {
+                    input.files = e.dataTransfer.files;
+                    text.textContent = e.dataTransfer.files[0].name;
+                    text.classList.add('font-bold', `text-${activeColor}-600`);
+                }
+            });
+        }
+
+        setupDropzone('signDropzone', 'signFile', 'signFileName', 'emerald');
+        setupDropzone('verifyDropzone', 'verifyFile', 'verifyFileName', 'blue');
+
+        // Handle Sign Submission
+        document.getElementById('signForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('signFile');
+            const btn = document.getElementById('signBtn');
+
+            if (!fileInput.files.length) return alert('Selecione um arquivo!');
+            if (!currentUser) return alert('Sessão expirada. Faça login novamente.');
+
+            const formData = new FormData();
+            formData.append('pdf', fileInput.files[0]);
+            formData.append('common_name', currentUser.name);
+            formData.append('email_address', currentUser.email);
+
+            btn.disabled = true;
+            const originalBtnText = btn.textContent;
+            btn.textContent = 'Codificando Criptografia...';
+            btn.classList.add('opacity-75', 'cursor-not-allowed');
+
+            try {
+                const response = await fetch('/v1/documents/sign', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Erro ao assinar');
+                }
+
+                // Download the signed PDF
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                // Add _signed to the original filename
+                const originalName = fileInput.files[0].name;
+                const newName = originalName.replace(/\.[^/.]+$/, "") + "_signed.pdf";
+                a.download = newName;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                
+                // Limpar campo visualmente
+                document.getElementById('signFileName').textContent = 'Ou arraste e solte o arquivo aqui';
+                document.getElementById('signFileName').classList.remove('font-bold', 'text-emerald-600');
+                fileInput.value = '';
+                
+            } catch (err) {
+                alert('Erro: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalBtnText;
+                btn.classList.remove('opacity-75', 'cursor-not-allowed');
+            }
+        });
+
+        // Handle Verify Submission
+        document.getElementById('verifyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('verifyFile');
+            const btn = document.getElementById('verifyBtn');
+            const resCard = document.getElementById('verifyResult');
+
+            if (!fileInput.files.length) return alert('Selecione um arquivo assinado!');
+
+            const formData = new FormData();
+            formData.append('pdf', fileInput.files[0]);
+
+            btn.disabled = true;
+            const originalBtnText = btn.textContent;
+            btn.textContent = 'Calculando Hashes...';
+            btn.classList.add('opacity-75', 'cursor-not-allowed');
+            resCard.classList.add('hidden');
+
+            try {
+                const response = await fetch('/v1/documents/verify', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao verificar');
+                }
+
+                resCard.classList.remove('hidden');
+                
+                const icon = document.getElementById('verifyStatusIcon');
+                const title = document.getElementById('verifyStatusTitle');
+                const desc = document.getElementById('verifyStatusDesc');
+                
+                if (data.valid) {
+                    icon.innerHTML = '<div class="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center shadow-inner"><svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div>';
+                    title.textContent = 'Assinatura Válida';
+                    title.className = 'text-2xl font-black text-emerald-700';
+                    desc.textContent = 'Documento autêntico e inalterado.';
+                } else {
+                    icon.innerHTML = '<div class="w-14 h-14 rounded-2xl bg-red-100 flex items-center justify-center shadow-inner"><svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></div>';
+                    title.textContent = 'Assinatura Inválida';
+                    title.className = 'text-2xl font-black text-red-700';
+                    desc.textContent = 'O documento foi modificado após a assinatura ou é falso.';
+                }
+
+                // Math
+                const elMath = document.getElementById('resMath');
+                elMath.textContent = data.signatureValid ? 'VÁLIDA (Ed25519)' : 'FALHOU';
+                elMath.className = data.signatureValid ? 'px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800' : 'px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-red-100 text-red-800';
+                
+                // Ledger
+                const elLedger = document.getElementById('resLedger');
+                elLedger.textContent = data.singleUseConfirmed ? 'CONFIRMADO (1 USO)' : 'FALHOU / FRAUDE';
+                elLedger.className = data.singleUseConfirmed ? 'px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800' : 'px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-red-100 text-red-800';
+
+                // Identity (we extract this from the Verify API return if possible, or just say it matches)
+                const docMatches = data.certificateDocumentMatches;
+                document.getElementById('resIdentity').textContent = docMatches ? "Atestada pelo IpeSign" : "Incompatível";
+                document.getElementById('resIdentity').className = docMatches ? "font-bold text-emerald-600 bg-emerald-50 px-3 py-1 border border-emerald-200 rounded-md shadow-sm truncate max-w-[200px]" : "font-bold text-red-600 bg-red-50 px-3 py-1 border border-red-200 rounded-md shadow-sm truncate max-w-[200px]";
+
+                // Record ID
+                document.getElementById('resRecordId').textContent = data.recordId || 'N/A';
+                document.getElementById('resRecordId').title = data.recordId || '';
+
+            } catch (err) {
+                alert('Erro: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalBtnText;
+                btn.classList.remove('opacity-75', 'cursor-not-allowed');
+            }
+        });
+
+        // Initialize application
+        goToLanding();
+    </script>
+</body>
+</html>

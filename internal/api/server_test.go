@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -10,7 +11,23 @@ import (
 	"testing"
 )
 
+func extractEmbeddedJSON(pdfBytes []byte) ([]byte, error) {
+	startMarker := []byte("\n%%IPESIGN_SIGNATURE_START%%\n")
+	endMarker := []byte("\n%%IPESIGN_SIGNATURE_END%%\n")
+
+	startIdx := bytes.LastIndex(pdfBytes, startMarker)
+	endIdx := bytes.LastIndex(pdfBytes, endMarker)
+
+	if startIdx == -1 || endIdx == -1 || startIdx >= endIdx {
+		return nil, fmt.Errorf("no embedded signature found in PDF")
+	}
+
+	return pdfBytes[startIdx+len(startMarker) : endIdx], nil
+}
+
 func TestServerSignsAndVerifiesPDF(t *testing.T) {
+	t.Setenv("IPESIGN_MASTER_KEY", "test-master-key")
+
 	server, err := NewServer(Config{
 		DataDir: filepath.Join(t.TempDir(), "data"),
 	})
@@ -37,24 +54,26 @@ func TestServerSignsAndVerifiesPDF(t *testing.T) {
 		t.Fatalf("sign status = %d body = %s", signRec.Code, signRec.Body.String())
 	}
 
+	embeddedJSON, err := extractEmbeddedJSON(signRec.Body.Bytes())
+	if err != nil {
+		t.Fatalf("extract embedded json: %v", err)
+	}
+
 	var signResp struct {
 		DocumentHash    string `json:"documentHash"`
 		SignatureBase64 string `json:"signatureBase64"`
 		CertificatePEM  string `json:"certificatePem"`
 		RecordID        string `json:"recordId"`
 	}
-	if err := json.Unmarshal(signRec.Body.Bytes(), &signResp); err != nil {
+	if err := json.Unmarshal(embeddedJSON, &signResp); err != nil {
 		t.Fatalf("decode sign response: %v", err)
 	}
 
 	if signResp.DocumentHash == "" || signResp.SignatureBase64 == "" || signResp.CertificatePEM == "" || signResp.RecordID == "" {
-		t.Fatalf("sign response missing fields: %s", signRec.Body.String())
+		t.Fatalf("sign response missing fields: %s", string(embeddedJSON))
 	}
 
-	verifyBody, verifyContentType, err := multipartRequest(pdf, map[string]string{
-		"certificate_pem":  signResp.CertificatePEM,
-		"signature_base64": signResp.SignatureBase64,
-	})
+	verifyBody, verifyContentType, err := multipartRequest(signRec.Body.Bytes(), map[string]string{})
 	if err != nil {
 		t.Fatalf("multipartRequest(verify) error = %v", err)
 	}
@@ -88,6 +107,8 @@ func TestServerSignsAndVerifiesPDF(t *testing.T) {
 }
 
 func TestServerPersistsAuthorityAndChain(t *testing.T) {
+	t.Setenv("IPESIGN_MASTER_KEY", "test-master-key")
+
 	dataDir := filepath.Join(t.TempDir(), "data")
 
 	firstServer, err := NewServer(Config{DataDir: dataDir})
@@ -113,12 +134,17 @@ func TestServerPersistsAuthorityAndChain(t *testing.T) {
 		t.Fatalf("sign status = %d body = %s", signRec.Code, signRec.Body.String())
 	}
 
+	embeddedJSON, err := extractEmbeddedJSON(signRec.Body.Bytes())
+	if err != nil {
+		t.Fatalf("extract embedded json: %v", err)
+	}
+
 	var signResp struct {
 		SignatureBase64 string `json:"signatureBase64"`
 		CertificatePEM  string `json:"certificatePem"`
 		RecordID        string `json:"recordId"`
 	}
-	if err := json.Unmarshal(signRec.Body.Bytes(), &signResp); err != nil {
+	if err := json.Unmarshal(embeddedJSON, &signResp); err != nil {
 		t.Fatalf("decode sign response: %v", err)
 	}
 
@@ -127,10 +153,7 @@ func TestServerPersistsAuthorityAndChain(t *testing.T) {
 		t.Fatalf("NewServer(second) error = %v", err)
 	}
 
-	verifyBody, verifyContentType, err := multipartRequest(pdf, map[string]string{
-		"certificate_pem":  signResp.CertificatePEM,
-		"signature_base64": signResp.SignatureBase64,
-	})
+	verifyBody, verifyContentType, err := multipartRequest(signRec.Body.Bytes(), map[string]string{})
 	if err != nil {
 		t.Fatalf("multipartRequest(verify) error = %v", err)
 	}
@@ -158,6 +181,95 @@ func TestServerPersistsAuthorityAndChain(t *testing.T) {
 
 	if verifyResp.RecordID != signResp.RecordID {
 		t.Fatalf("record id = %q, want %q", verifyResp.RecordID, signResp.RecordID)
+	}
+}
+
+func TestServerSupportsDocumentAliasesAndRecordLookup(t *testing.T) {
+	t.Setenv("IPESIGN_MASTER_KEY", "test-master-key")
+
+	server, err := NewServer(Config{
+		DataDir: filepath.Join(t.TempDir(), "data"),
+	})
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+
+	handler := server.Handler()
+	pdf := []byte("%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF")
+
+	signBody, signContentType, err := multipartRequest(pdf, map[string]string{
+		"policy_id": "participation-v1",
+	})
+	if err != nil {
+		t.Fatalf("multipartRequest(sign) error = %v", err)
+	}
+
+	signReq := httptest.NewRequest(http.MethodPost, "/v1/documents/sign", signBody)
+	signReq.Header.Set("Content-Type", signContentType)
+	signRec := httptest.NewRecorder()
+	handler.ServeHTTP(signRec, signReq)
+
+	if signRec.Code != http.StatusOK {
+		t.Fatalf("sign alias status = %d body = %s", signRec.Code, signRec.Body.String())
+	}
+
+	embeddedJSON, err := extractEmbeddedJSON(signRec.Body.Bytes())
+	if err != nil {
+		t.Fatalf("extract embedded json: %v", err)
+	}
+
+	var signResp struct {
+		RecordID        string `json:"recordId"`
+		CertHash        string `json:"certHash"`
+		SignatureBase64 string `json:"signatureBase64"`
+		CertificatePEM  string `json:"certificatePem"`
+	}
+	if err := json.Unmarshal(embeddedJSON, &signResp); err != nil {
+		t.Fatalf("decode sign alias response: %v", err)
+	}
+
+	recordReq := httptest.NewRequest(http.MethodGet, "/v1/records/"+signResp.RecordID, nil)
+	recordRec := httptest.NewRecorder()
+	handler.ServeHTTP(recordRec, recordReq)
+
+	if recordRec.Code != http.StatusOK {
+		t.Fatalf("record lookup status = %d body = %s", recordRec.Code, recordRec.Body.String())
+	}
+
+	var recordResp struct {
+		RecordID          string `json:"recordId"`
+		CertHash          string `json:"certHash"`
+		LedgerRecordValid bool   `json:"ledgerRecordValid"`
+		SingleUse         bool   `json:"singleUse"`
+	}
+	if err := json.Unmarshal(recordRec.Body.Bytes(), &recordResp); err != nil {
+		t.Fatalf("decode record response: %v", err)
+	}
+
+	if recordResp.RecordID != signResp.RecordID {
+		t.Fatalf("record id = %q, want %q", recordResp.RecordID, signResp.RecordID)
+	}
+
+	if recordResp.CertHash != signResp.CertHash {
+		t.Fatalf("cert hash = %q, want %q", recordResp.CertHash, signResp.CertHash)
+	}
+
+	if !recordResp.LedgerRecordValid || !recordResp.SingleUse {
+		t.Fatalf("record response invalid: %s", recordRec.Body.String())
+	}
+
+	verifyBody, verifyContentType, err := multipartRequest(signRec.Body.Bytes(), map[string]string{})
+	if err != nil {
+		t.Fatalf("multipartRequest(verify alias) error = %v", err)
+	}
+
+	verifyReq := httptest.NewRequest(http.MethodPost, "/v1/documents/verify", verifyBody)
+	verifyReq.Header.Set("Content-Type", verifyContentType)
+	verifyRec := httptest.NewRecorder()
+	handler.ServeHTTP(verifyRec, verifyReq)
+
+	if verifyRec.Code != http.StatusOK {
+		t.Fatalf("verify alias status = %d body = %s", verifyRec.Code, verifyRec.Body.String())
 	}
 }
 

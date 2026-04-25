@@ -5,27 +5,31 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"ipesign/internal/cryptoutil"
 )
 
 const (
-	caCertFilename    = "ca-cert.pem"
-	caKeyFilename     = "ca-key.pem"
-	ledgerKeyFilename = "ledger-key.pem"
-	chainFilename     = "chain.json"
+	rootCACertFilename = "root-ca-cert.pem"
+	rootCAKeyFilename  = "root-ca-key"
+	caCertFilename     = "ca-cert.pem"
+	caKeyFilename      = "ca-key.pem"
+	ledgerKeyFilename  = "ledger-key.pem"
+	chainFilename      = "chain.json"
 )
 
 type FileStore struct {
-	dir string
+	dir              string
+	privateBlobCodec PrivateBlobCodec
 }
 
-func NewFileStore(dir string) *FileStore {
+func NewFileStore(dir string, masterKey string) *FileStore {
 	if dir == "" {
 		dir = DefaultDir
 	}
 
-	return &FileStore{dir: dir}
+	return &FileStore{
+		dir:              dir,
+		privateBlobCodec: NewPassphrasePrivateBlobCodec(masterKey),
+	}
 }
 
 func (s *FileStore) Backend() string {
@@ -54,22 +58,47 @@ func (s *FileStore) Exists() (bool, error) {
 }
 
 func (s *FileStore) Load() (*State, error) {
+	rootCACertPEM, err := readOptionalFile(filepath.Join(s.dir, rootCACertFilename))
+	if err != nil {
+		return nil, fmt.Errorf("read root CA certificate: %w", err)
+	}
+
+	rootCAKeyRaw, err := readOptionalFile(filepath.Join(s.dir, rootCAKeyFilename))
+	if err != nil {
+		return nil, fmt.Errorf("read root CA private key: %w", err)
+	}
+
+	rootCAKeyPEM, err := s.decodePrivateBlob(rootCAKeyRaw)
+	if err != nil {
+		return nil, fmt.Errorf("decode root CA private key: %w", err)
+	}
+
 	caCertPEM, err := os.ReadFile(filepath.Join(s.dir, caCertFilename))
 	if err != nil {
 		return nil, fmt.Errorf("read CA certificate: %w", err)
 	}
 
-	caKeyPEM, err := os.ReadFile(filepath.Join(s.dir, caKeyFilename))
+	caKeyRaw, err := os.ReadFile(filepath.Join(s.dir, caKeyFilename))
 	if err != nil {
 		return nil, fmt.Errorf("read CA private key: %w", err)
 	}
 
-	ledgerKeyPEM, err := os.ReadFile(filepath.Join(s.dir, ledgerKeyFilename))
+	caKeyPEM, err := s.decodePrivateBlob(caKeyRaw)
+	if err != nil {
+		return nil, fmt.Errorf("decode CA private key: %w", err)
+	}
+
+	ledgerKeyRaw, err := os.ReadFile(filepath.Join(s.dir, ledgerKeyFilename))
 	if err != nil {
 		return nil, fmt.Errorf("read ledger private key: %w", err)
 	}
 
-	ledgerKey, err := cryptoutil.ParseEd25519PrivateKeyPEM(ledgerKeyPEM)
+	ledgerKeyPEM, err := s.decodePrivateBlob(ledgerKeyRaw)
+	if err != nil {
+		return nil, fmt.Errorf("decode ledger private key: %w", err)
+	}
+
+	ledgerKey, err := decodeEd25519PrivateKeyPEM(ledgerKeyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("parse ledger private key: %w", err)
 	}
@@ -80,9 +109,11 @@ func (s *FileStore) Load() (*State, error) {
 	}
 
 	state := &State{
-		CACertPEM: caCertPEM,
-		CAKeyPEM:  caKeyPEM,
-		LedgerKey: ledgerKey,
+		RootCACertPEM: rootCACertPEM,
+		RootCAKeyPEM:  rootCAKeyPEM,
+		CACertPEM:     caCertPEM,
+		CAKeyPEM:      caKeyPEM,
+		LedgerKey:     ledgerKey,
 	}
 	if err := json.Unmarshal(rawBlocks, &state.Blocks); err != nil {
 		return nil, fmt.Errorf("decode chain snapshot: %w", err)
@@ -100,9 +131,27 @@ func (s *FileStore) Save(state *State) error {
 		return fmt.Errorf("create data dir: %w", err)
 	}
 
-	ledgerKeyPEM, err := cryptoutil.MarshalEd25519PrivateKeyPEM(state.LedgerKey)
+	ledgerKeyPEM, err := encodeEd25519PrivateKeyPEM(state.LedgerKey)
 	if err != nil {
 		return fmt.Errorf("encode ledger private key: %w", err)
+	}
+
+	sealedCAKey, err := s.privateBlobCodec.Seal(state.CAKeyPEM)
+	if err != nil {
+		return fmt.Errorf("seal CA private key: %w", err)
+	}
+
+	sealedLedgerKey, err := s.privateBlobCodec.Seal(ledgerKeyPEM)
+	if err != nil {
+		return fmt.Errorf("seal ledger private key: %w", err)
+	}
+
+	var sealedRootCAKey []byte
+	if len(state.RootCAKeyPEM) > 0 {
+		sealedRootCAKey, err = s.privateBlobCodec.Seal(state.RootCAKeyPEM)
+		if err != nil {
+			return fmt.Errorf("seal root CA private key: %w", err)
+		}
 	}
 
 	rawBlocks, err := json.MarshalIndent(state.Blocks, "", "  ")
@@ -110,15 +159,27 @@ func (s *FileStore) Save(state *State) error {
 		return fmt.Errorf("encode chain snapshot: %w", err)
 	}
 
+	if len(state.RootCACertPEM) > 0 {
+		if err := writeFileAtomic(filepath.Join(s.dir, rootCACertFilename), state.RootCACertPEM, 0o644); err != nil {
+			return err
+		}
+	}
+
+	if len(sealedRootCAKey) > 0 {
+		if err := writeFileAtomic(filepath.Join(s.dir, rootCAKeyFilename), sealedRootCAKey, 0o600); err != nil {
+			return err
+		}
+	}
+
 	if err := writeFileAtomic(filepath.Join(s.dir, caCertFilename), state.CACertPEM, 0o644); err != nil {
 		return err
 	}
 
-	if err := writeFileAtomic(filepath.Join(s.dir, caKeyFilename), state.CAKeyPEM, 0o600); err != nil {
+	if err := writeFileAtomic(filepath.Join(s.dir, caKeyFilename), sealedCAKey, 0o600); err != nil {
 		return err
 	}
 
-	if err := writeFileAtomic(filepath.Join(s.dir, ledgerKeyFilename), ledgerKeyPEM, 0o600); err != nil {
+	if err := writeFileAtomic(filepath.Join(s.dir, ledgerKeyFilename), sealedLedgerKey, 0o600); err != nil {
 		return err
 	}
 
@@ -127,6 +188,31 @@ func (s *FileStore) Save(state *State) error {
 	}
 
 	return nil
+}
+
+func (s *FileStore) decodePrivateBlob(raw []byte) ([]byte, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+
+	if s.privateBlobCodec.IsSealed(raw) {
+		return s.privateBlobCodec.Open(raw)
+	}
+
+	return raw, nil
+}
+
+func readOptionalFile(path string) ([]byte, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return raw, nil
 }
 
 func writeFileAtomic(path string, content []byte, mode os.FileMode) error {

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"ipesign/internal/api"
+	"ipesign/internal/core"
 	"ipesign/internal/ledger/localchain"
 )
 
@@ -76,20 +77,26 @@ func runServer(args []string) error {
 func runSign(args []string) error {
 	fs := flag.NewFlagSet("sign", flag.ContinueOnError)
 	outPath := fs.String("out", "", "output signature sidecar path")
-	policyID := fs.String("policy", api.DefaultPolicyID, "policy id")
+	policyID := fs.String("policy", core.DefaultPolicyID, "policy id")
 	dataDir := fs.String("data-dir", "./data", "data directory for CA and blockchain")
 	databaseURL := fs.String("database-url", envOrDefault("DATABASE_URL", ""), "PostgreSQL connection string")
+	commonName := fs.String("common-name", "", "Subject Common Name (e.g. user name)")
+	emailAddress := fs.String("email", "", "Subject Email Address")
+	organization := fs.String("org", "", "Subject Organization")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
 	if fs.NArg() != 1 {
-		return fmt.Errorf("usage: ipesign sign [--out file.ipesign.json] /path/file.pdf")
+		return fmt.Errorf("usage: ipesign sign [--out signed.pdf] /path/file.pdf")
 	}
 
 	pdfPath := fs.Arg(0)
 	if *outPath == "" {
-		*outPath = defaultSidecarPath(pdfPath)
+		dir := filepath.Dir(pdfPath)
+		baseName := strings.TrimSuffix(filepath.Base(pdfPath), filepath.Ext(pdfPath))
+		cleanName := strings.ReplaceAll(baseName, " ", "_")
+		*outPath = filepath.Join(dir, cleanName+"_signed.pdf")
 	}
 
 	pdfBytes, err := os.ReadFile(pdfPath)
@@ -97,7 +104,7 @@ func runSign(args []string) error {
 		return fmt.Errorf("read pdf: %w", err)
 	}
 
-	server, err := api.NewServer(api.Config{
+	service, err := core.NewService(core.Config{
 		DataDir:     *dataDir,
 		DatabaseURL: *databaseURL,
 	})
@@ -105,27 +112,29 @@ func runSign(args []string) error {
 		return err
 	}
 
-	result, err := server.SignPDF(pdfBytes, filepath.Base(pdfPath), *policyID)
+	identity := core.SignerIdentity{
+		CommonName:   *commonName,
+		EmailAddress: *emailAddress,
+		Organization: *organization,
+	}
+
+	signedPdfBytes, result, err := service.SignPDF(pdfBytes, filepath.Base(pdfPath), *policyID, identity)
 	if err != nil {
 		return err
 	}
 
-	raw, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		return fmt.Errorf("encode signature sidecar: %w", err)
-	}
-
 	if err := os.MkdirAll(filepath.Dir(*outPath), 0o755); err != nil {
-		return fmt.Errorf("create sidecar directory: %w", err)
+		return fmt.Errorf("create out directory: %w", err)
 	}
 
-	if err := os.WriteFile(*outPath, raw, 0o644); err != nil {
-		return fmt.Errorf("write signature sidecar: %w", err)
+	if err := os.WriteFile(*outPath, signedPdfBytes, 0o644); err != nil {
+		return fmt.Errorf("write signed pdf: %w", err)
 	}
 
 	fmt.Printf("signed: %s\n", pdfPath)
-	fmt.Printf("sidecar: %s\n", *outPath)
+	fmt.Printf("output: %s\n", *outPath)
 	fmt.Printf("document hash: %s\n", result.DocumentHash)
+	fmt.Printf("signed pdf hash: %s\n", result.SignedPDFHash)
 	fmt.Printf("record id: %s\n", result.RecordID)
 	fmt.Printf("cert hash: %s\n", result.CertHash)
 
@@ -240,7 +249,6 @@ func runVerify(args []string) error {
 
 func runVerifyFile(args []string) error {
 	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
-	sidecarPath := fs.String("sidecar", "", "signature sidecar path")
 	dataDir := fs.String("data-dir", "./data", "data directory for CA and blockchain")
 	databaseURL := fs.String("database-url", envOrDefault("DATABASE_URL", ""), "PostgreSQL connection string")
 	if err := fs.Parse(args); err != nil {
@@ -248,30 +256,16 @@ func runVerifyFile(args []string) error {
 	}
 
 	if fs.NArg() != 1 {
-		return fmt.Errorf("usage: ipesign verify [--sidecar file.ipesign.json] /path/file.pdf")
+		return fmt.Errorf("usage: ipesign verify /path/signed.pdf")
 	}
 
 	pdfPath := fs.Arg(0)
-	if *sidecarPath == "" {
-		*sidecarPath = defaultSidecarPath(pdfPath)
-	}
-
-	pdfBytes, err := os.ReadFile(pdfPath)
+	signedPdfBytes, err := os.ReadFile(pdfPath)
 	if err != nil {
 		return fmt.Errorf("read pdf: %w", err)
 	}
 
-	rawSidecar, err := os.ReadFile(*sidecarPath)
-	if err != nil {
-		return fmt.Errorf("read sidecar: %w", err)
-	}
-
-	var sidecar api.SignResult
-	if err := json.Unmarshal(rawSidecar, &sidecar); err != nil {
-		return fmt.Errorf("decode sidecar: %w", err)
-	}
-
-	server, err := api.NewServer(api.Config{
+	service, err := core.NewService(core.Config{
 		DataDir:     *dataDir,
 		DatabaseURL: *databaseURL,
 	})
@@ -279,7 +273,7 @@ func runVerifyFile(args []string) error {
 		return err
 	}
 
-	result, err := server.VerifyPDF(pdfBytes, sidecar.CertificatePEM, sidecar.SignatureBase64)
+	result, err := service.VerifyEmbeddedPDF(signedPdfBytes)
 	if err != nil {
 		return err
 	}

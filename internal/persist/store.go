@@ -3,17 +3,21 @@ package persist
 import (
 	"crypto/ed25519"
 	"fmt"
+	"os"
 
 	"ipesign/internal/ledger/localchain"
 )
 
 const DefaultDir = "./data"
+const masterKeyEnv = "IPESIGN_MASTER_KEY"
 
 type State struct {
-	CACertPEM []byte
-	CAKeyPEM  []byte
-	LedgerKey ed25519.PrivateKey
-	Blocks    []localchain.Block
+	RootCACertPEM []byte
+	RootCAKeyPEM  []byte
+	CACertPEM     []byte
+	CAKeyPEM      []byte
+	LedgerKey     ed25519.PrivateKey
+	Blocks        []localchain.Block
 }
 
 type StateStore interface {
@@ -26,14 +30,23 @@ type StateStore interface {
 type Config struct {
 	DataDir     string
 	DatabaseURL string
+	MasterKey   string
 }
 
 func NewStateStore(cfg Config) (StateStore, error) {
-	if cfg.DatabaseURL != "" {
-		return NewPostgresStore(cfg.DatabaseURL)
+	if cfg.MasterKey == "" {
+		cfg.MasterKey = os.Getenv(masterKeyEnv)
 	}
 
-	return NewFileStore(cfg.DataDir), nil
+	if cfg.MasterKey == "" {
+		return nil, fmt.Errorf("%s is required", masterKeyEnv)
+	}
+
+	if cfg.DatabaseURL != "" {
+		return NewPostgresStore(cfg.DatabaseURL, cfg.MasterKey)
+	}
+
+	return NewFileStore(cfg.DataDir, cfg.MasterKey), nil
 }
 
 func validateState(state *State) error {
@@ -55,6 +68,10 @@ func validateState(state *State) error {
 
 	if len(state.Blocks) == 0 {
 		return fmt.Errorf("chain snapshot is required")
+	}
+
+	if (len(state.RootCACertPEM) == 0) != (len(state.RootCAKeyPEM) == 0) {
+		return fmt.Errorf("root CA certificate and key must be both present or both absent")
 	}
 
 	return nil
