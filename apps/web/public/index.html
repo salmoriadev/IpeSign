@@ -27,8 +27,13 @@
     <nav class="bg-white border-b border-gray-200">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
-                <div class="flex items-center cursor-pointer" onclick="goToLanding()">
+                <div class="flex items-center gap-2 cursor-pointer" onclick="goToLanding()">
                     <span class="text-2xl font-extrabold text-emerald-600">IpeSign</span>
+                    <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center" aria-hidden="true">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </span>
                 </div>
                 <div class="flex items-center space-x-4">
                     <div id="navUserArea" class="hidden items-center space-x-4">
@@ -48,11 +53,8 @@
         
         <!-- View: Landing -->
         <div id="view-landing" class="max-w-4xl w-full text-center py-12">
-            <div class="inline-block bg-emerald-100 text-emerald-800 px-4 py-1.5 rounded-full text-sm font-bold tracking-wide mb-6">
-                PROJETO OPEN SOURCE
-            </div>
             <h1 class="text-5xl sm:text-6xl font-extrabold text-gray-900 mb-6 tracking-tight">Cartório Digital Simplificado</h1>
-            <p class="text-xl text-gray-500 mb-12 max-w-2xl mx-auto leading-relaxed">Assine e audite contratos na sua própria máquina usando o modelo <span class="font-semibold text-gray-700">Single-Use Keys</span> apoiado por um ledger Blockchain transparente.</p>
+            <p class="text-xl text-gray-500 mb-12 max-w-2xl mx-auto leading-relaxed">Assine e audite contratos na sua própria máquina usando o modelo <span class="font-semibold text-gray-700">Single-Use Keys</span> apoiado por uma blockchain 100% transparente, rastreável e imutável.</p>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
                 <button onclick="requireAuth('sign')" class="flex flex-col items-center p-10 bg-white border-2 border-emerald-100 rounded-3xl shadow-sm hover:shadow-lg hover:border-emerald-400 transition-all duration-300 group">
