@@ -28,3 +28,14 @@ This folder is prepared for the web-facing backend.
 ## Environment
 
 See `.env.example`.
+
+Deploy-oriented notes:
+
+- `DATABASE_URL`: use the Supabase Postgres connection string
+- `SUPABASE_URL`: enables bearer-token auth for `POST /v1/sign`
+- `SUPABASE_JWT_SECRET`: optional fallback for projects still using legacy symmetric JWT signing
+
+When `SUPABASE_URL` is set, the API exposes:
+
+- `GET /v1/auth/me`
+- authenticated signing via `Authorization: Bearer <supabase_access_token>`

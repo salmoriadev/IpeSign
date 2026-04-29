@@ -1,0 +1,13 @@
+.git
+.gitignore
+.codex
+.gocache
+node_modules
+apps/web/node_modules
+tmp
+data
+server
+sign.json
+sign-persist.json
+*.pem
+*.log

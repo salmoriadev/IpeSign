@@ -9,6 +9,9 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func extractEmbeddedJSON(pdfBytes []byte) ([]byte, error) {
@@ -270,6 +273,66 @@ func TestServerSupportsDocumentAliasesAndRecordLookup(t *testing.T) {
 
 	if verifyRec.Code != http.StatusOK {
 		t.Fatalf("verify alias status = %d body = %s", verifyRec.Code, verifyRec.Body.String())
+	}
+}
+
+func TestServerRequiresSupabaseAuthWhenConfigured(t *testing.T) {
+	t.Setenv("IPESIGN_MASTER_KEY", "test-master-key")
+
+	server, err := NewServer(Config{
+		DataDir:           filepath.Join(t.TempDir(), "data"),
+		SupabaseURL:       "https://example.supabase.co",
+		SupabaseJWTSecret: "test-supabase-secret",
+	})
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+
+	pdf := []byte("%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF")
+	signBody, signContentType, err := multipartRequest(pdf, map[string]string{
+		"policy_id": "participation-v1",
+	})
+	if err != nil {
+		t.Fatalf("multipartRequest(sign) error = %v", err)
+	}
+
+	unauthReq := httptest.NewRequest(http.MethodPost, "/v1/sign", signBody)
+	unauthReq.Header.Set("Content-Type", signContentType)
+	unauthRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(unauthRec, unauthReq)
+	if unauthRec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauth status = %d body = %s", unauthRec.Code, unauthRec.Body.String())
+	}
+
+	now := time.Now().UTC()
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"iss":           "https://example.supabase.co/auth/v1",
+		"sub":           "user-123",
+		"email":         "user@example.com",
+		"role":          "authenticated",
+		"exp":           now.Add(time.Hour).Unix(),
+		"iat":           now.Unix(),
+		"user_metadata": map[string]any{"full_name": "User Example"},
+	})
+	signedToken, err := token.SignedString([]byte("test-supabase-secret"))
+	if err != nil {
+		t.Fatalf("SignedString() error = %v", err)
+	}
+
+	authBody, authContentType, err := multipartRequest(pdf, map[string]string{
+		"policy_id": "participation-v1",
+	})
+	if err != nil {
+		t.Fatalf("multipartRequest(sign-auth) error = %v", err)
+	}
+
+	authReq := httptest.NewRequest(http.MethodPost, "/v1/sign", authBody)
+	authReq.Header.Set("Content-Type", authContentType)
+	authReq.Header.Set("Authorization", "Bearer "+signedToken)
+	authRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(authRec, authReq)
+	if authRec.Code != http.StatusOK {
+		t.Fatalf("auth status = %d body = %s", authRec.Code, authRec.Body.String())
 	}
 }
 

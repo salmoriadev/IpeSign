@@ -7,31 +7,54 @@ import (
 	"net/http"
 	"strings"
 
+	"ipesign/internal/auth"
 	"ipesign/internal/core"
 )
 
-type Config = core.Config
+type Config struct {
+	DataDir            string
+	DatabaseURL        string
+	MasterKey          string
+	SupabaseURL        string
+	SupabaseJWTSecret  string
+	AllowedOrigin      string
+}
+
 type SignResult = core.SignResult
 type VerifyResult = core.VerifyResult
 type RecordResult = core.RecordResult
 
 type Server struct {
 	service *core.Service
+	auth    *auth.Service
+	allowedOrigin string
 }
 
 func NewServer(cfg Config) (*Server, error) {
-	service, err := core.NewService(cfg)
+	service, err := core.NewService(core.Config{
+		DataDir:     cfg.DataDir,
+		DatabaseURL: cfg.DatabaseURL,
+		MasterKey:   cfg.MasterKey,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	return &Server{service: service}, nil
+	return &Server{
+		service: service,
+		auth: auth.NewService(auth.Config{
+			SupabaseURL:       cfg.SupabaseURL,
+			SupabaseJWTSecret: cfg.SupabaseJWTSecret,
+		}),
+		allowedOrigin: firstNonEmpty(cfg.AllowedOrigin, "*"),
+	}, nil
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	// API Routes
+	mux.HandleFunc("/v1/auth/me", s.handleAuthMe)
 	mux.HandleFunc("/v1/health", s.handleHealth)
 	mux.HandleFunc("/v1/ca", s.handleCA)
 	mux.HandleFunc("/v1/sign", s.handleSign)
@@ -48,9 +71,9 @@ func (s *Server) Handler() http.Handler {
 
 	// CORS Middleware
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", s.allowedOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -93,6 +116,25 @@ func (s *Server) handleCA(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.service.CAInfo())
 }
 
+func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !s.auth.Enabled() {
+		writeError(w, http.StatusNotImplemented, "supabase auth is not configured")
+		return
+	}
+
+	session, err := s.auth.SessionFromBearer(r.Header.Get("Authorization"))
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, session)
+}
+
 func (s *Server) handleSign(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -105,14 +147,10 @@ func (s *Server) handleSign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	identity := core.SignerIdentity{
-		CommonName:         r.FormValue("common_name"),
-		EmailAddress:       r.FormValue("email_address"),
-		Organization:       r.FormValue("organization"),
-		OrganizationalUnit: r.FormValue("organizational_unit"),
-		Country:            r.FormValue("country"),
-		Province:           r.FormValue("province"),
-		Locality:           r.FormValue("locality"),
+	identity, err := s.signerIdentityFromRequest(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, err.Error())
+		return
 	}
 
 	signedPdfBytes, _, err := s.service.SignPDF(pdfBytes, filename, policyID, identity)
@@ -227,6 +265,31 @@ func readPDFUpload(r *http.Request) ([]byte, string, string, error) {
 	return pdfBytes, header.Filename, policyID, nil
 }
 
+func (s *Server) signerIdentityFromRequest(r *http.Request) (core.SignerIdentity, error) {
+	identity := core.SignerIdentity{
+		CommonName:         strings.TrimSpace(r.FormValue("common_name")),
+		EmailAddress:       strings.TrimSpace(r.FormValue("email_address")),
+		Organization:       strings.TrimSpace(r.FormValue("organization")),
+		OrganizationalUnit: strings.TrimSpace(r.FormValue("organizational_unit")),
+		Country:            strings.TrimSpace(r.FormValue("country")),
+		Province:           strings.TrimSpace(r.FormValue("province")),
+		Locality:           strings.TrimSpace(r.FormValue("locality")),
+	}
+
+	if !s.auth.Enabled() {
+		return identity, nil
+	}
+
+	session, err := s.auth.SessionFromBearer(r.Header.Get("Authorization"))
+	if err != nil {
+		return core.SignerIdentity{}, err
+	}
+
+	identity.CommonName = firstNonEmpty(identity.CommonName, session.DisplayName, session.Email, session.UserID)
+	identity.EmailAddress = firstNonEmpty(identity.EmailAddress, session.Email)
+	return identity, nil
+}
+
 func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -237,4 +300,13 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]any{
 		"error": message,
 	})
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }

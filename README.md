@@ -30,7 +30,6 @@ What does not exist yet:
 
 - embedded PDF signature
 - PAdES
-- production auth
 - admin UI
 - final frontend
 
@@ -69,6 +68,9 @@ Run the API:
 
 ```bash
 export IPESIGN_MASTER_KEY='change-this'
+export SUPABASE_URL='https://your-project.supabase.co'
+export SUPABASE_JWT_SECRET='your-legacy-jwt-secret-if-applicable'
+export CORS_ALLOW_ORIGIN='http://localhost:3000'
 go run ./apps/api/cmd/server
 ```
 
@@ -84,6 +86,7 @@ Sign:
 curl -s \
   -F pdf=@/path/file.pdf \
   -F policy_id=participation-v1 \
+  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
   http://localhost:8080/v1/documents/sign | jq
 ```
 
@@ -116,13 +119,69 @@ Default behavior:
 Optional behavior:
 
 - PostgreSQL if `DATABASE_URL` is set
+- bearer auth from Supabase if `SUPABASE_URL` is set
 
 Examples:
 
 ```bash
-export DATABASE_URL='postgresql://USER:PASSWORD@HOST:5432/DBNAME?sslmode=disable'
+export DATABASE_URL='postgresql://postgres.[PROJECT-REF]:PASSWORD@aws-0-[REGION].pooler.supabase.com:5432/postgres'
 export IPESIGN_MASTER_KEY='change-this'
+export SUPABASE_URL='https://[PROJECT-REF].supabase.co'
 go run ./cmd/ipesign sign /path/file.pdf
+```
+
+For hosted Supabase projects, the official docs recommend:
+
+- email/password auth via Supabase Auth
+- using the Postgres connection string from the `Connect` button in the dashboard
+- using the pooler connection string for IPv4/persistent environments when direct IPv6 is not suitable
+
+Sources:
+
+- Supabase password auth: https://supabase.com/docs/guides/auth/passwords
+- Supabase Postgres connection strings: https://supabase.com/docs/reference/postgres/connection-strings
+
+## API Auth
+
+If `SUPABASE_URL` is configured, the API verifies Supabase bearer tokens and protects `POST /v1/sign`.
+
+Routes:
+
+- `GET /v1/auth/me`
+- `POST /v1/sign`
+- `POST /v1/documents/sign`
+
+If `SUPABASE_JWT_SECRET` is provided, the API can also validate legacy symmetric Supabase JWTs. Otherwise it uses the project's JWKS endpoint at `SUPABASE_URL/auth/v1/.well-known/jwks.json`.
+
+## Deploy
+
+This repository now includes:
+
+- `Dockerfile` for the API runtime
+- `.dockerignore`
+- `render.yaml` for Render deployment
+
+Production envs:
+
+- `IPESIGN_MASTER_KEY`
+- `DATABASE_URL`
+- `SUPABASE_URL`
+- optional `SUPABASE_JWT_SECRET`
+- `CORS_ALLOW_ORIGIN`
+- optional `PORT` supplied by the platform
+
+The current PostgreSQL persistence implementation still requires `psql`, so the runtime image installs `postgresql-client`.
+
+Local container run:
+
+```bash
+docker build -t ipesign-api .
+docker run --rm -p 8080:8080 \
+  -e IPESIGN_MASTER_KEY='change-this' \
+  -e DATABASE_URL='postgresql://...' \
+  -e SUPABASE_URL='https://your-project.supabase.co' \
+  -e CORS_ALLOW_ORIGIN='https://your-frontend.example.com' \
+  ipesign-api
 ```
 
 ## Context Docs

@@ -9,13 +9,27 @@ import (
 )
 
 func main() {
-	addr := envOrDefault("IPESIGN_ADDR", ":8080")
+	addr := envOrDefault("IPESIGN_ADDR", "")
+	if addr == "" {
+		if port := os.Getenv("PORT"); port != "" {
+			addr = ":" + port
+		} else {
+			addr = ":8080"
+		}
+	}
 	dataDir := envOrDefault("IPESIGN_DATA_DIR", "./data")
 	databaseURL := os.Getenv("DATABASE_URL")
+	supabaseURL := os.Getenv("SUPABASE_URL")
+	supabaseJWTSecret := os.Getenv("SUPABASE_JWT_SECRET")
+	allowedOrigin := envOrDefault("CORS_ALLOW_ORIGIN", "*")
 
 	server, err := api.NewServer(api.Config{
-		DataDir:     dataDir,
-		DatabaseURL: databaseURL,
+		DataDir:           dataDir,
+		DatabaseURL:       databaseURL,
+		MasterKey:         os.Getenv("IPESIGN_MASTER_KEY"),
+		SupabaseURL:       supabaseURL,
+		SupabaseJWTSecret: supabaseJWTSecret,
+		AllowedOrigin:     allowedOrigin,
 	})
 	if err != nil {
 		log.Fatalf("failed to create API server: %v", err)
