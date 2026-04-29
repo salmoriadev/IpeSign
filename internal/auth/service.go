@@ -144,8 +144,16 @@ func (s *Service) SessionFromBearer(header string) (*Session, error) {
 	email := firstNonEmpty(asString(claims["email"]))
 	displayName := firstNonEmpty(
 		asString(claims["name"]),
+		asString(claims["full_name"]),
+		asString(claims["display_name"]),
 		asNestedString(claims["user_metadata"], "full_name"),
+		asNestedString(claims["user_metadata"], "fullName"),
 		asNestedString(claims["user_metadata"], "name"),
+		asNestedString(claims["user_metadata"], "display_name"),
+		asNestedString(claims["raw_user_meta_data"], "full_name"),
+		asNestedString(claims["raw_user_meta_data"], "fullName"),
+		asNestedString(claims["raw_user_meta_data"], "name"),
+		asNestedString(claims["raw_user_meta_data"], "display_name"),
 		email,
 		userID,
 	)

@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IpeSign - Digital Signature</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
     <!-- Adds PDF.js to render PDFs in the browser -->
@@ -12,6 +15,18 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
     <style>
+        html {
+            min-height: 100%;
+            background: linear-gradient(135deg, #bbf7d0 0%, #ecfdf5 30%, #ffffff 56%, #d1fae5 100%) fixed;
+        }
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", sans-serif;
+            font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+            text-rendering: geometricPrecision;
+        }
+        .hero-type {
+            font-family: "Manrope", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
         .drag-active {
             border-color: #10b981 !important;
             background-color: #ecfdf5 !important;
@@ -22,25 +37,28 @@
         }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen font-sans text-gray-800 flex flex-col">
+<body class="min-h-screen text-slate-800 flex flex-col antialiased bg-transparent">
     <!-- Navbar -->
-    <nav class="bg-white border-b border-gray-200">
+    <nav class="sticky top-0 z-30 bg-transparent backdrop-blur-sm">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex items-center gap-2 cursor-pointer" onclick="goToLanding()">
-                    <span class="text-2xl font-extrabold text-emerald-600">IpeSign</span>
-                    <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center" aria-hidden="true">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
-                        </svg>
-                    </span>
+            <div class="flex justify-between h-[72px]">
+                <div class="flex flex-col items-start justify-center gap-1 cursor-pointer" onclick="goToLanding()">
+                    <div class="flex items-center gap-2">
+                        <span class="text-2xl font-bold text-emerald-700">IpeSign</span>
+                        <span class="w-8 h-8 rounded-lg bg-white/45 text-[#047857] flex items-center justify-center ring-1 ring-emerald-200/70 shadow-sm backdrop-blur" aria-hidden="true">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                        </span>
+                    </div>
+                    <span class="h-1 w-full rounded-full bg-gradient-to-r from-emerald-700 via-emerald-500 to-emerald-700 shadow-[0_2px_8px_rgba(4,120,87,0.22)]" aria-hidden="true"></span>
                 </div>
                 <div class="flex items-center space-x-4">
                     <div id="navUserArea" class="hidden items-center space-x-4">
-                        <span class="text-sm text-gray-600">Hello, <span id="navUserName" class="font-bold"></span></span>
+                        <span class="text-sm text-slate-600">Hello, <span id="navUserName" class="font-bold text-slate-900"></span></span>
                         <button onclick="logout()" class="text-sm text-red-600 hover:text-red-800 font-medium">Log out</button>
                     </div>
-                    <button id="navLoginBtn" onclick="showLogin()" class="text-sm font-medium text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-4 py-2 rounded-lg transition-colors">
+                    <button id="navLoginBtn" onclick="showLogin()" class="text-sm font-semibold text-emerald-800 hover:text-emerald-900 bg-white/45 hover:bg-white/70 border border-emerald-200/70 px-4 py-2.5 rounded-xl shadow-sm hover:shadow backdrop-blur transition-all">
                         Sign In
                     </button>
                 </div>
@@ -49,66 +67,66 @@
     </nav>
 
     <!-- Main Container -->
-    <main class="flex-grow flex flex-col items-center justify-center p-4">
+    <main class="flex-grow flex flex-col items-center justify-center px-4 py-10 sm:py-14">
         
         <!-- View: Landing -->
-        <div id="view-landing" class="max-w-4xl w-full text-center py-12">
-            <h1 class="text-5xl sm:text-6xl font-extrabold text-gray-900 mb-6 tracking-tight">Simplified Digital Notary</h1>
-            <p class="text-xl text-gray-500 mb-12 max-w-2xl mx-auto leading-relaxed">Sign and audit contracts on your own machine using the <span class="font-semibold text-gray-700">Single-Use Keys</span> model backed by a 100% transparent, traceable, and immutable blockchain.</p>
+        <div id="view-landing" class="max-w-5xl w-full text-center py-8 sm:py-14">
+            <h1 class="hero-type max-w-4xl mx-auto text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-950 mb-5 leading-[1.04]">Simplified Digital Notary</h1>
+            <p class="hero-type text-lg sm:text-xl font-medium text-slate-600 mb-10 sm:mb-12 max-w-2xl mx-auto leading-relaxed">Sign and audit contracts on your own machine using the <span class="font-semibold text-slate-800">Single-Use Keys</span> model backed by a 100% transparent, traceable, and immutable blockchain.</p>
             
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
-                <button onclick="requireAuth('sign')" class="flex flex-col items-center p-10 bg-white border-2 border-emerald-100 rounded-3xl shadow-sm hover:shadow-lg hover:border-emerald-400 transition-all duration-300 group">
-                    <div class="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-emerald-500 group-hover:text-white transition-all">
-                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-2xl mx-auto">
+                <button onclick="requireAuth('sign')" class="flex flex-col items-center p-8 sm:p-10 bg-white/85 border border-emerald-100/80 rounded-2xl shadow-[0_18px_50px_rgba(15,23,42,0.06)] hover:shadow-[0_22px_60px_rgba(15,23,42,0.10)] hover:-translate-y-1 hover:border-emerald-300 transition-all duration-300 group backdrop-blur">
+                    <div class="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mb-6 ring-1 ring-emerald-100 shadow-inner group-hover:scale-[1.04] group-hover:bg-emerald-500 group-hover:text-white group-hover:ring-emerald-500 transition-all">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Sign PDF</h3>
-                    <p class="text-sm text-gray-500 text-center">Generate an ephemeral certificate and package the signature inside the file.</p>
+                    <h3 class="text-xl font-bold text-slate-950 mb-3">Sign PDF</h3>
+                    <p class="text-sm text-slate-500 text-center leading-6 max-w-[14rem]">Generate an ephemeral certificate and package the signature inside the file.</p>
                 </button>
 
-                <button onclick="requireAuth('verify')" class="flex flex-col items-center p-10 bg-white border-2 border-blue-100 rounded-3xl shadow-sm hover:shadow-lg hover:border-blue-400 transition-all duration-300 group">
-                    <div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-blue-500 group-hover:text-white transition-all">
-                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <button onclick="requireAuth('verify')" class="flex flex-col items-center p-8 sm:p-10 bg-white/85 border border-blue-100/80 rounded-2xl shadow-[0_18px_50px_rgba(15,23,42,0.06)] hover:shadow-[0_22px_60px_rgba(15,23,42,0.10)] hover:-translate-y-1 hover:border-blue-300 transition-all duration-300 group backdrop-blur">
+                    <div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-6 ring-1 ring-blue-100 shadow-inner group-hover:scale-[1.04] group-hover:bg-blue-500 group-hover:text-white group-hover:ring-blue-500 transition-all">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Verify PDF</h3>
-                    <p class="text-sm text-gray-500 text-center">Inspect Ed25519 cryptography and prevent reuse on the blockchain.</p>
+                    <h3 class="text-xl font-bold text-slate-950 mb-3">Verify PDF</h3>
+                    <p class="text-sm text-slate-500 text-center leading-6 max-w-[14rem]">Inspect Ed25519 cryptography and prevent reuse on the blockchain.</p>
                 </button>
             </div>
         </div>
 
         <!-- View: Login -->
-        <div id="view-login" class="hidden max-w-md w-full bg-white p-10 rounded-3xl shadow-lg border border-gray-100 relative overflow-hidden">
-            <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-400 to-emerald-600"></div>
+        <div id="view-login" class="hidden max-w-md w-full bg-white/85 p-8 sm:p-10 rounded-2xl shadow-[0_24px_70px_rgba(15,23,42,0.10)] border border-slate-200/70 relative overflow-hidden backdrop-blur">
+            <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-300 via-emerald-500 to-emerald-600"></div>
             <div class="text-center mb-10 mt-2">
-                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-50 mb-4">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-50 ring-1 ring-emerald-100 shadow-inner mb-4">
                     <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                 </div>
-                <h2 class="text-3xl font-bold text-gray-900 tracking-tight">Authentication</h2>
-                <p class="text-sm text-gray-500 mt-2">Sign in with your Supabase email and password to sign.</p>
+                <h2 class="text-3xl font-semibold text-slate-950">Authentication</h2>
+                <p class="text-sm text-slate-500 mt-2">Sign in with your Supabase email and password to sign.</p>
             </div>
             
             <form id="loginForm" class="space-y-6">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
-                    <input type="text" id="loginName" class="w-full px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors" placeholder="E.g. Arthur Salmoria">
-                    <p class="mt-2 text-xs text-gray-500">Used to create the account and fill the initial signer.</p>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Full Name</label>
+                    <input type="text" id="loginName" class="w-full px-5 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 bg-white/80 focus:bg-white shadow-sm transition-colors" placeholder="E.g. Arthur Salmoria">
+                    <p class="mt-2 text-xs text-slate-500">Used to create the account and keep the saved signer name in sync.</p>
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Work Email</label>
-                    <input type="email" id="loginEmail" class="w-full px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors" placeholder="E.g. arthur@company.com" required>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Work Email</label>
+                    <input type="email" id="loginEmail" class="w-full px-5 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 bg-white/80 focus:bg-white shadow-sm transition-colors" placeholder="E.g. arthur@company.com" required>
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Password</label>
-                    <input type="password" id="loginPassword" class="w-full px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors" placeholder="Your Supabase password" required>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Password</label>
+                    <input type="password" id="loginPassword" class="w-full px-5 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 bg-white/80 focus:bg-white shadow-sm transition-colors" placeholder="Your Supabase password" required>
                 </div>
                 
                 <div class="pt-4">
-                    <button type="submit" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm text-base font-bold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors">
+                    <button type="submit" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm hover:shadow-md text-base font-bold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 transition-all">
                         Secure Sign In
                     </button>
-                    <button type="button" id="signupBtn" class="w-full mt-3 flex justify-center py-3 px-4 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors">
+                    <button type="button" id="signupBtn" class="w-full mt-3 flex justify-center py-3 px-4 border border-emerald-200/80 rounded-xl text-sm font-semibold text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100 transition-colors">
                         Create Supabase Account
                     </button>
-                    <button type="button" onclick="goToLanding()" class="w-full mt-3 flex justify-center py-3 px-4 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
+                    <button type="button" onclick="goToLanding()" class="w-full mt-3 flex justify-center py-3 px-4 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
                         Cancel and Go Back
                     </button>
                 </div>
@@ -118,59 +136,59 @@
         <!-- View: App (Sign/Verify) -->
         <div id="view-app" class="hidden max-w-4xl w-full">
             <!-- Tabs -->
-            <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-                <div class="border-b border-gray-100 bg-gray-50/50">
+            <div class="bg-white/85 rounded-2xl shadow-[0_24px_70px_rgba(15,23,42,0.08)] border border-slate-200/70 overflow-hidden mb-8 backdrop-blur">
+                <div class="border-b border-slate-200/70 bg-slate-50/60">
                     <nav class="flex" aria-label="Tabs">
-                        <button onclick="switchTab('sign')" id="tab-sign" class="w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-emerald-500 text-emerald-600 transition-colors">Digital Signature</button>
-                        <button onclick="switchTab('verify')" id="tab-verify" class="w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200 transition-colors">Document Validator</button>
+                        <button onclick="switchTab('sign')" id="tab-sign" class="w-1/2 py-4 px-1 text-center border-b-2 font-bold text-sm sm:text-base border-emerald-500 text-emerald-700 bg-white/60 transition-colors">Digital Signature</button>
+                        <button onclick="switchTab('verify')" id="tab-verify" class="w-1/2 py-4 px-1 text-center border-b-2 font-bold text-sm sm:text-base border-transparent text-slate-500 hover:text-slate-700 hover:bg-white/60 hover:border-slate-200 transition-colors">Document Validator</button>
                     </nav>
                 </div>
                 
-                <div class="p-8 sm:p-12">
+                <div class="p-6 sm:p-10">
                     <!-- Sign Tab Content -->
                     <div id="content-sign" class="max-w-xl mx-auto">
-                        <div class="text-center mb-8 bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
-                            <h2 class="text-lg font-bold text-gray-900">Signing as: <span id="signCurrentName" class="text-emerald-700"></span></h2>
-                            <p id="signCurrentEmail" class="text-sm text-gray-600 font-mono mt-1"></p>
+                        <div class="text-center mb-8 bg-emerald-50/80 border border-emerald-100 rounded-xl p-4">
+                            <h2 class="text-base sm:text-lg font-bold text-slate-950">Signing as: <span id="signCurrentName" class="text-emerald-700"></span></h2>
+                            <p id="signCurrentEmail" class="text-sm text-slate-600 font-mono mt-1"></p>
                         </div>
                         
                         <form id="signForm" class="space-y-6">
                             <!-- Original dropzone -->
-                            <div id="signDropzone" class="flex justify-center px-6 pt-8 pb-8 border-2 border-emerald-200 border-dashed rounded-2xl cursor-pointer hover:bg-emerald-50 hover:border-emerald-300 transition-all bg-gray-50/50 group">
+                            <div id="signDropzone" class="flex justify-center px-6 pt-8 pb-8 border border-emerald-200 border-dashed rounded-xl cursor-pointer hover:bg-emerald-50/80 hover:border-emerald-300 transition-all bg-white/70 group">
                                 <div class="space-y-3 text-center">
-                                    <svg class="mx-auto h-16 w-16 text-emerald-300 group-hover:text-emerald-500 transition-colors" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                    <svg class="mx-auto h-14 w-14 text-emerald-300 group-hover:text-emerald-500 transition-colors" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
                                         <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                                     </svg>
-                                    <div class="flex text-base text-gray-600 justify-center">
+                                    <div class="flex text-base text-slate-600 justify-center">
                                         <span class="relative bg-transparent rounded-md font-bold text-emerald-600 hover:text-emerald-700 focus-within:outline-none">
                                             <span>Click to upload the PDF</span>
                                             <input id="signFile" name="signFile" type="file" class="sr-only" accept=".pdf" required>
                                         </span>
                                     </div>
-                                    <p class="text-sm text-gray-500" id="signFileName">Or drag and drop the file here</p>
+                                    <p class="text-sm text-slate-500" id="signFileName">Or drag and drop the file here</p>
                                 </div>
                             </div>
 
                             <!-- Visual Preview Box (Hidden initially) -->
                             <div id="pdfPreviewSection" class="hidden space-y-4">
                                 <div class="flex justify-between items-center mb-2">
-                                    <p class="text-sm font-semibold text-gray-700">Drag the stamp to position the visual signature:</p>
+                                    <p class="text-sm font-semibold text-slate-700">Drag the stamp to position the visual signature:</p>
                                     <button type="button" onclick="resetFile()" class="text-sm text-red-500 hover:text-red-700 font-medium">Replace PDF</button>
                                 </div>
                                 
                                 <div id="pdfPagination" class="hidden items-center justify-center space-x-4 mb-2">
-                                    <button type="button" id="prevPageBtn" onclick="changePage(-1)" class="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">&lt; Previous</button>
-                                    <span class="text-sm font-medium text-gray-600">Page <span id="currentPageNum">1</span> of <span id="totalPagesNum">1</span></span>
-                                    <button type="button" id="nextPageBtn" onclick="changePage(1)" class="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">Next &gt;</button>
+                                    <button type="button" id="prevPageBtn" onclick="changePage(-1)" class="px-3 py-1.5 bg-white/90 border border-slate-200 text-slate-700 text-sm rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">&lt; Previous</button>
+                                    <span class="text-sm font-medium text-slate-600">Page <span id="currentPageNum">1</span> of <span id="totalPagesNum">1</span></span>
+                                    <button type="button" id="nextPageBtn" onclick="changePage(1)" class="px-3 py-1.5 bg-white/90 border border-slate-200 text-slate-700 text-sm rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Next &gt;</button>
                                 </div>
 
-                                <div class="w-full overflow-x-auto bg-gray-100 p-4 rounded-xl border border-gray-200">
-                                    <div id="pdfPreviewContainer" class="relative mx-auto bg-white shadow-lg" style="width: max-content;">
+                                <div class="w-full overflow-x-auto bg-slate-100/80 p-4 rounded-xl border border-slate-200/70">
+                                    <div id="pdfPreviewContainer" class="relative mx-auto bg-white shadow-[0_18px_50px_rgba(15,23,42,0.16)]" style="width: max-content;">
                                         <canvas id="pdfCanvas" class="block"></canvas>
-                                        <div id="draggableStamp" class="absolute cursor-move border border-gray-300 bg-white/95 text-gray-800 text-[8px] p-2 shadow-sm select-none z-10 leading-tight rounded-md flex items-center gap-2" style="width: 260px; height: 62px; top: 10px; left: 10px; box-sizing: border-box;">
+                                        <div id="draggableStamp" class="absolute cursor-move border border-slate-300 bg-white/95 text-slate-800 text-[8px] p-2 shadow-sm select-none z-10 leading-tight rounded-md flex items-center gap-2" style="width: 260px; height: 62px; top: 10px; left: 10px; box-sizing: border-box;">
                                             <img src="/ipesign-city-logo.png" alt="" class="w-20 shrink-0 opacity-90">
                                             <div class="min-w-0 flex-1 space-y-0.5">
-                                                <div class="font-semibold truncate">Digitally signed by: <span id="stampName"></span></div>
+                                                <div class="font-semibold truncate">Name: <span id="stampName"></span></div>
                                                 <div class="truncate">Email: <span id="stampEmail"></span></div>
                                                 <div class="truncate">Date: <span id="stampDate"></span></div>
                                             </div>
@@ -178,14 +196,14 @@
                                     </div>
                                 </div>
                                 <div class="flex items-center">
-                                    <input type="checkbox" id="noStampCheck" class="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded">
-                                    <label for="noStampCheck" class="ml-2 block text-sm text-gray-900">
+                                    <input type="checkbox" id="noStampCheck" class="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-slate-300 rounded">
+                                    <label for="noStampCheck" class="ml-2 block text-sm text-slate-900">
                                         Do not embed a visual stamp (invisible cryptographic signature only)
                                     </label>
                                 </div>
                             </div>
 
-                            <button type="submit" id="signBtn" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-md text-lg font-bold text-white bg-emerald-600 hover:bg-emerald-700 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all duration-200">
+                            <button type="submit" id="signBtn" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm hover:shadow-md text-lg font-bold text-white bg-emerald-600 hover:bg-emerald-700 hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 transition-all duration-200">
                                 Inject Cryptographic Signature
                             </button>
                         </form>
@@ -194,46 +212,46 @@
                     <!-- Verify Tab Content -->
                     <div id="content-verify" class="hidden max-w-xl mx-auto">
                         <div class="text-center mb-10">
-                            <h2 class="text-2xl font-bold text-gray-900">Public Audit</h2>
-                            <p class="text-sm text-gray-500 mt-2 leading-relaxed">Inspect whether a document contains an authentic IpeSign injection and has not been subject to double spending (reuse) on the blockchain.</p>
+                            <h2 class="text-2xl font-bold text-slate-950">Public Audit</h2>
+                            <p class="text-sm text-slate-500 mt-2 leading-relaxed">Inspect whether a document contains an authentic IpeSign injection and has not been subject to double spending (reuse) on the blockchain.</p>
                         </div>
 
                         <form id="verifyForm" class="space-y-6">
-                            <div id="verifyDropzone" class="flex justify-center px-6 pt-12 pb-12 border-2 border-blue-200 border-dashed rounded-2xl cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-all bg-gray-50/50 group">
+                            <div id="verifyDropzone" class="flex justify-center px-6 pt-12 pb-12 border border-blue-200 border-dashed rounded-xl cursor-pointer hover:bg-blue-50/80 hover:border-blue-300 transition-all bg-white/70 group">
                                 <div class="space-y-3 text-center">
-                                    <svg class="mx-auto h-16 w-16 text-blue-300 group-hover:text-blue-500 transition-colors" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                    <svg class="mx-auto h-14 w-14 text-blue-300 group-hover:text-blue-500 transition-colors" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
                                         <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                                     </svg>
-                                    <div class="flex text-base text-gray-600 justify-center">
+                                    <div class="flex text-base text-slate-600 justify-center">
                                         <span class="relative bg-transparent rounded-md font-bold text-blue-600 hover:text-blue-700 focus-within:outline-none">
                                             <span>Upload Signed Document</span>
                                             <input id="verifyFile" name="verifyFile" type="file" class="sr-only" accept=".pdf" required>
                                         </span>
                                     </div>
-                                    <p class="text-sm text-gray-500" id="verifyFileName">Files ending in _signed.pdf</p>
+                                    <p class="text-sm text-slate-500" id="verifyFileName">Files ending in _signed.pdf</p>
                                 </div>
                             </div>
 
-                            <button type="submit" id="verifyBtn" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-md text-lg font-bold text-white bg-blue-600 hover:bg-blue-700 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200">
+                            <button type="submit" id="verifyBtn" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm hover:shadow-md text-lg font-bold text-white bg-blue-600 hover:bg-blue-700 hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-200">
                                 Audit Document Now
                             </button>
                         </form>
 
                         <!-- Verify Result Card -->
-                        <div id="verifyResult" class="hidden mt-8 bg-white border border-gray-200 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                        <div id="verifyResult" class="hidden mt-8 bg-white/85 border border-slate-200/70 rounded-2xl p-6 shadow-[0_24px_70px_rgba(15,23,42,0.10)] relative overflow-hidden backdrop-blur">
                             <div class="flex items-center mb-6">
                                 <div id="verifyStatusIcon" class="flex-shrink-0 mr-4 relative z-10"></div>
                                 <div class="relative z-10">
                                     <h3 id="verifyStatusTitle" class="text-xl font-bold"></h3>
-                                    <p id="verifyStatusDesc" class="text-sm text-gray-500 mt-1"></p>
+                                    <p id="verifyStatusDesc" class="text-sm text-slate-500 mt-1"></p>
                                 </div>
                             </div>
-                            <div class="space-y-4 text-sm text-gray-600 border-t pt-6 bg-gray-50/50 -mx-6 px-6 -mb-6 pb-6 rounded-b-2xl relative z-10">
-                                <div class="flex justify-between items-center"><span class="font-semibold text-gray-700">Mathematical Validation (Ed25519):</span> <span id="resMath" class="px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider"></span></div>
-                                <div class="flex justify-between items-center"><span class="font-semibold text-gray-700">Ledger Status (Single-Use):</span> <span id="resLedger" class="px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider"></span></div>
-                                <div class="flex justify-between items-center border-t border-dashed pt-4"><span class="font-semibold text-gray-700">Signer:</span> <span id="resIdentity" class="font-bold text-gray-900 truncate max-w-[200px] bg-white px-3 py-1 border rounded-md shadow-sm"></span></div>
-                                <div class="flex justify-between items-center mt-2"><span class="font-semibold text-gray-700">Signer Email:</span> <span id="resSignerEmail" class="font-mono text-xs text-gray-500 truncate max-w-[200px]"></span></div>
-                                <div class="flex justify-between items-center mt-2"><span class="font-semibold text-gray-700">Record ID (Blockchain):</span> <span id="resRecordId" class="font-mono text-xs text-gray-500 truncate max-w-[200px]"></span></div>
+                            <div class="space-y-4 text-sm text-slate-600 border-t border-slate-200/70 pt-6 bg-slate-50/70 -mx-6 px-6 -mb-6 pb-6 rounded-b-2xl relative z-10">
+                                <div class="flex justify-between items-center"><span class="font-semibold text-slate-700">Mathematical Validation (Ed25519):</span> <span id="resMath" class="px-3 py-1 rounded-md text-xs font-bold uppercase"></span></div>
+                                <div class="flex justify-between items-center"><span class="font-semibold text-slate-700">Ledger Status (Single-Use):</span> <span id="resLedger" class="px-3 py-1 rounded-md text-xs font-bold uppercase"></span></div>
+                                <div class="flex justify-between items-center border-t border-dashed border-slate-200 pt-4"><span class="font-semibold text-slate-700">Signer:</span> <span id="resIdentity" class="font-bold text-slate-900 truncate max-w-[200px] bg-white px-3 py-1 border rounded-md shadow-sm"></span></div>
+                                <div class="flex justify-between items-center mt-2"><span class="font-semibold text-slate-700">Signer Email:</span> <span id="resSignerEmail" class="font-mono text-xs text-slate-500 truncate max-w-[200px]"></span></div>
+                                <div class="flex justify-between items-center mt-2"><span class="font-semibold text-slate-700">Record ID (Blockchain):</span> <span id="resRecordId" class="font-mono text-xs text-slate-500 truncate max-w-[200px]"></span></div>
                             </div>
                         </div>
                     </div>
@@ -253,6 +271,7 @@
         let currentPreviewPage = 1;
         let totalPreviewPages = 1;
         const signatureLogoSrc = '/ipesign-city-logo.png';
+        const registeredNamesStorageKey = 'ipesign_registered_names';
 
         // Views Control
         function hideAllViews() {
@@ -266,7 +285,7 @@
                 document.getElementById('navLoginBtn').classList.add('hidden');
                 document.getElementById('navUserArea').classList.remove('hidden');
                 document.getElementById('navUserArea').classList.add('flex');
-                document.getElementById('navUserName').textContent = currentUser.name.split(' ')[0];
+                document.getElementById('navUserName').textContent = currentUser.name ? currentUser.name.split(' ')[0] : currentUser.email;
                 document.getElementById('signCurrentName').textContent = currentUser.name;
                 document.getElementById('signCurrentEmail').textContent = currentUser.email;
             } else {
@@ -329,6 +348,13 @@
                 throw new Error('SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is missing in the backend.');
             }
 
+            const profileData = {
+                full_name: name,
+                fullName: name,
+                name,
+                display_name: name
+            };
+
             const response = await fetch(`${authConfig.supabaseUrl}/auth/v1/signup`, {
                 method: 'POST',
                 headers: {
@@ -338,10 +364,9 @@
                 body: JSON.stringify({
                     email,
                     password,
+                    data: profileData,
                     options: {
-                        data: {
-                            full_name: name
-                        }
+                        data: profileData
                     }
                 })
             });
@@ -384,7 +409,246 @@
             return data;
         }
 
-        async function loadCurrentSession(accessToken) {
+        function isEmailLike(value) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((value || '').trim());
+        }
+
+        function cleanSignerName(value, email = '', userId = '') {
+            const name = (value || '').trim();
+            const lowerName = name.toLowerCase();
+            if (!name || lowerName === (email || '').trim().toLowerCase() || name === userId || isEmailLike(name)) {
+                return '';
+            }
+
+            return name;
+        }
+
+        function registeredNameKey(email) {
+            return (email || '').trim().toLowerCase();
+        }
+
+        function loadRegisteredNames() {
+            try {
+                const names = JSON.parse(localStorage.getItem(registeredNamesStorageKey) || '{}');
+                return names && typeof names === 'object' && !Array.isArray(names) ? names : {};
+            } catch {
+                return {};
+            }
+        }
+
+        function registeredNameForEmail(email) {
+            const key = registeredNameKey(email);
+            if (!key) {
+                return '';
+            }
+
+            return cleanSignerName(loadRegisteredNames()[key], email);
+        }
+
+        function saveRegisteredName(email, name, userId = '') {
+            const key = registeredNameKey(email);
+            const cleanName = cleanSignerName(name, email, userId);
+            if (!key || !cleanName) {
+                return '';
+            }
+
+            const names = loadRegisteredNames();
+            names[key] = cleanName;
+            localStorage.setItem(registeredNamesStorageKey, JSON.stringify(names));
+            return cleanName;
+        }
+
+        function hasValidSignerName(user) {
+            return Boolean(user?.name && cleanSignerName(user.name, user.email));
+        }
+
+        function findNestedRegisteredName(source, email = '', userId = '', seen = new Set()) {
+            if (!source || typeof source !== 'object' || seen.has(source)) {
+                return '';
+            }
+
+            seen.add(source);
+
+            if (Array.isArray(source)) {
+                for (const item of source) {
+                    const name = findNestedRegisteredName(item, email, userId, seen);
+                    if (name) {
+                        return name;
+                    }
+                }
+                return '';
+            }
+
+            for (const key of ['full_name', 'fullName', 'display_name', 'name']) {
+                if (Object.prototype.hasOwnProperty.call(source, key)) {
+                    const name = cleanSignerName(source[key], email, userId);
+                    if (name) {
+                        return name;
+                    }
+                }
+            }
+
+            for (const value of Object.values(source)) {
+                const name = findNestedRegisteredName(value, email, userId, seen);
+                if (name) {
+                    return name;
+                }
+            }
+
+            return '';
+        }
+
+        function firstRegisteredName(source, email = '', userId = '') {
+            const candidates = [
+                source?.displayName,
+                source?.full_name,
+                source?.fullName,
+                source?.name,
+                source?.user_metadata?.full_name,
+                source?.user_metadata?.fullName,
+                source?.user_metadata?.name,
+                source?.user_metadata?.display_name,
+                source?.raw_user_meta_data?.full_name,
+                source?.raw_user_meta_data?.fullName,
+                source?.raw_user_meta_data?.name,
+                source?.raw_user_meta_data?.display_name,
+                source?.claims?.user_metadata?.full_name,
+                source?.claims?.user_metadata?.fullName,
+                source?.claims?.user_metadata?.name,
+                source?.claims?.user_metadata?.display_name,
+                source?.claims?.raw_user_meta_data?.full_name,
+                source?.claims?.raw_user_meta_data?.fullName,
+                source?.claims?.raw_user_meta_data?.name,
+                source?.claims?.raw_user_meta_data?.display_name,
+                source?.user?.user_metadata?.full_name,
+                source?.user?.user_metadata?.fullName,
+                source?.user?.user_metadata?.name,
+                source?.user?.user_metadata?.display_name,
+                source?.user?.raw_user_meta_data?.full_name,
+                source?.user?.raw_user_meta_data?.fullName,
+                source?.user?.raw_user_meta_data?.name,
+                source?.user?.raw_user_meta_data?.display_name,
+                source?.identities?.[0]?.identity_data?.full_name,
+                source?.identities?.[0]?.identity_data?.fullName,
+                source?.identities?.[0]?.identity_data?.name,
+                source?.user?.identities?.[0]?.identity_data?.full_name,
+                source?.user?.identities?.[0]?.identity_data?.fullName,
+                source?.user?.identities?.[0]?.identity_data?.name,
+            ];
+
+            for (const candidate of candidates) {
+                const name = cleanSignerName(candidate, email, userId);
+                if (name) {
+                    return name;
+                }
+            }
+
+            return findNestedRegisteredName(source, email, userId);
+        }
+
+        function saveSignerName(name) {
+            const cleanName = saveRegisteredName(currentUser?.email, name, currentUser?.userId) || cleanSignerName(name, currentUser?.email, currentUser?.userId) || name;
+            currentUser.name = cleanName;
+            localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
+            updateNav();
+
+            const stampName = document.getElementById('stampName');
+            if (stampName) {
+                stampName.textContent = cleanName;
+            }
+        }
+
+        function resolveDisplayName(sessionData, fallbackName = '') {
+            const email = (sessionData.email || '').trim();
+            const userId = (sessionData.userId || '').trim();
+            const fallback = cleanSignerName(fallbackName, email, userId);
+            const registeredName = firstRegisteredName(sessionData, email, userId);
+            const storedName = registeredNameForEmail(email);
+
+            return registeredName || fallback || storedName;
+        }
+
+        async function ensureRegisteredSignerName() {
+            if (hasValidSignerName(currentUser)) {
+                return true;
+            }
+
+            const registeredName = cleanSignerName(await loadSupabaseProfileName(currentUser?.accessToken), currentUser?.email, currentUser?.userId) || registeredNameForEmail(currentUser?.email);
+
+            if (registeredName) {
+                saveSignerName(registeredName);
+                return true;
+            }
+
+            alert('No saved full name was found for this account. Sign out, fill Full Name once on sign in, and IpeSign will save it to your profile.');
+            return false;
+        }
+
+        function supabaseDisplayName(authData) {
+            return firstRegisteredName(authData, authData?.user?.email, authData?.user?.id);
+        }
+
+        async function updateSupabaseProfileName(accessToken, email, name, userId = '') {
+            const cleanName = cleanSignerName(name, email, userId);
+            if (!authConfig?.supabaseUrl || !authConfig?.supabasePublishableKey || !accessToken || !cleanName) {
+                return '';
+            }
+
+            try {
+                const response = await fetch(`${authConfig.supabaseUrl}/auth/v1/user`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': authConfig.supabasePublishableKey,
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                        data: {
+                            full_name: cleanName,
+                            fullName: cleanName,
+                            name: cleanName,
+                            display_name: cleanName
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    return cleanName;
+                }
+
+                const data = await response.json();
+                return firstRegisteredName(data, email, userId) || cleanName;
+            } catch {
+                return cleanName;
+            }
+        }
+
+        async function loadSupabaseProfileName(accessToken) {
+            if (!authConfig?.supabaseUrl || !authConfig?.supabasePublishableKey || !accessToken) {
+                return '';
+            }
+
+            let response;
+            try {
+                response = await fetch(`${authConfig.supabaseUrl}/auth/v1/user`, {
+                    headers: {
+                        'apikey': authConfig.supabasePublishableKey,
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+            } catch {
+                return '';
+            }
+
+            if (!response.ok) {
+                return '';
+            }
+
+            const data = await response.json();
+            return firstRegisteredName(data, data?.email, data?.id);
+        }
+
+        async function loadCurrentSession(accessToken, fallbackName = '') {
             const response = await fetch('/v1/auth/me', {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`
@@ -396,9 +660,21 @@
                 throw new Error(data.error || 'Invalid session');
             }
 
+            let resolvedName = resolveDisplayName(data, fallbackName);
+            if (!resolvedName) {
+                resolvedName = cleanSignerName(await loadSupabaseProfileName(accessToken), data.email, data.userId);
+            }
+            if (!resolvedName) {
+                resolvedName = registeredNameForEmail(data.email);
+            }
+            if (resolvedName) {
+                saveRegisteredName(data.email, resolvedName, data.userId);
+            }
+
             return {
-                name: data.displayName || data.email || data.userId,
+                name: resolvedName,
                 email: data.email || '',
+                userId: data.userId || '',
                 accessToken
             };
         }
@@ -411,22 +687,22 @@
             const btnSign = document.getElementById('tab-sign');
             const btnVerify = document.getElementById('tab-verify');
             
-            btnSign.className = "w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200 transition-colors";
-            btnVerify.className = "w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200 transition-colors";
+            btnSign.className = "w-1/2 py-4 px-1 text-center border-b-2 font-bold text-sm sm:text-base border-transparent text-slate-500 hover:text-slate-700 hover:bg-white/60 hover:border-slate-200 transition-colors";
+            btnVerify.className = "w-1/2 py-4 px-1 text-center border-b-2 font-bold text-sm sm:text-base border-transparent text-slate-500 hover:text-slate-700 hover:bg-white/60 hover:border-slate-200 transition-colors";
 
             if (tabId === 'sign') {
                 document.getElementById('content-sign').classList.remove('hidden');
-                btnSign.className = "w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-emerald-500 text-emerald-600 transition-colors";
+                btnSign.className = "w-1/2 py-4 px-1 text-center border-b-2 font-bold text-sm sm:text-base border-emerald-500 text-emerald-700 bg-white/60 transition-colors";
             } else {
                 document.getElementById('content-verify').classList.remove('hidden');
-                btnVerify.className = "w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-blue-500 text-blue-600 transition-colors";
+                btnVerify.className = "w-1/2 py-4 px-1 text-center border-b-2 font-bold text-sm sm:text-base border-blue-500 text-blue-700 bg-white/60 transition-colors";
             }
         }
 
         // Auth Logic
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const name = document.getElementById('loginName').value.trim();
+            const typedName = document.getElementById('loginName').value.trim();
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
             const submitButton = e.submitter;
@@ -437,10 +713,10 @@
 
             try {
                 const authData = await loginWithSupabase(email, password);
-                currentUser = await loadCurrentSession(authData.access_token);
-                if (!currentUser.name && name) {
-                    currentUser.name = name;
-                }
+                const accessToken = authData.access_token || authData.session?.access_token || '';
+                const profileName = await updateSupabaseProfileName(accessToken, email, typedName, authData?.user?.id);
+                const fallbackName = profileName || supabaseDisplayName(authData) || registeredNameForEmail(email);
+                currentUser = await loadCurrentSession(accessToken, fallbackName);
                 localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
 
                 if (pendingAction) {
@@ -469,16 +745,23 @@
                 return;
             }
 
+            const cleanName = cleanSignerName(name, email);
+            if (!cleanName) {
+                alert('Fill in a real full name, not an email address.');
+                return;
+            }
+
             signupButton.disabled = true;
             signupButton.textContent = 'Creating account...';
 
             try {
-                const data = await signUpWithSupabase(name, email, password);
+                const data = await signUpWithSupabase(cleanName, email, password);
+                saveRegisteredName(email, cleanName, data?.user?.id);
                 const accessToken = data.access_token || data.session?.access_token || '';
 
                 if (accessToken) {
-                    currentUser = await loadCurrentSession(accessToken);
-                    currentUser.name = currentUser.name || name;
+                    const profileName = await updateSupabaseProfileName(accessToken, email, cleanName, data?.user?.id);
+                    currentUser = await loadCurrentSession(accessToken, profileName || cleanName || supabaseDisplayName(data));
                     localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
                     if (pendingAction) {
                         showApp(pendingAction);
@@ -616,6 +899,11 @@
         }
 
         async function loadPdfPreview(file) {
+            if (!await ensureRegisteredSignerName()) {
+                document.getElementById('signFile').value = '';
+                return;
+            }
+
             currentPdfFile = file;
             document.getElementById('signDropzone').classList.add('hidden');
             document.getElementById('pdfPreviewSection').classList.remove('hidden');
@@ -682,19 +970,19 @@
             dropzone.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 dropzone.classList.add('border-solid', `border-${activeColor}-400`, `bg-${activeColor}-100`);
-                dropzone.classList.remove('border-dashed', `bg-${activeColor}-50/50`);
+                dropzone.classList.remove('border-dashed', 'bg-white/70', `bg-${activeColor}-50/50`);
             });
 
             dropzone.addEventListener('dragleave', (e) => {
                 e.preventDefault();
                 dropzone.classList.remove('border-solid', `border-${activeColor}-400`, `bg-${activeColor}-100`);
-                dropzone.classList.add('border-dashed', `bg-${activeColor}-50/50`);
+                dropzone.classList.add('border-dashed', 'bg-white/70');
             });
 
             dropzone.addEventListener('drop', (e) => {
                 e.preventDefault();
                 dropzone.classList.remove('border-solid', `border-${activeColor}-400`, `bg-${activeColor}-100`);
-                dropzone.classList.add('border-dashed', `bg-${activeColor}-50/50`);
+                dropzone.classList.add('border-dashed', 'bg-white/70');
                 
                 if (e.dataTransfer.files.length) {
                     input.files = e.dataTransfer.files;
@@ -719,7 +1007,8 @@
 
             if (!currentPdfFile) return alert('Select a file!');
             if (!currentUser) return alert('Session expired. Sign in again.');
-            if (!currentUser.name || !currentUser.email) return alert('The authenticated account must have a valid name and email.');
+            if (!await ensureRegisteredSignerName()) return;
+            if (!currentUser.email) return alert('The authenticated account must have a valid email.');
 
             btn.disabled = true;
             const originalBtnText = btn.textContent;
@@ -828,7 +1117,7 @@
                             const lineGap = Math.max(3, textHeight * 0.06);
                             const availableTextWidth = pdfX + textWidth - padding - contentX;
 
-                            targetPage.drawText(fitTextToWidth(`Digitally signed by: ${currentUser.name}`, boldFont, titleSize, availableTextWidth), {
+                            targetPage.drawText(fitTextToWidth(`Name: ${currentUser.name}`, boldFont, titleSize, availableTextWidth), {
                                 x: contentX,
                                 y: contentTop - titleSize,
                                 size: titleSize,
@@ -939,26 +1228,26 @@
                 const desc = document.getElementById('verifyStatusDesc');
                 
                 if (data.valid) {
-                    icon.innerHTML = '<div class="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center shadow-inner"><svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div>';
+                    icon.innerHTML = '<div class="w-14 h-14 rounded-xl bg-emerald-100 flex items-center justify-center shadow-inner"><svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div>';
                     title.textContent = 'Valid Signature';
-                    title.className = 'text-2xl font-black text-emerald-700';
+                    title.className = 'text-2xl font-bold text-emerald-700';
                     desc.textContent = 'Document is authentic and unchanged.';
                 } else {
-                    icon.innerHTML = '<div class="w-14 h-14 rounded-2xl bg-red-100 flex items-center justify-center shadow-inner"><svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></div>';
+                    icon.innerHTML = '<div class="w-14 h-14 rounded-xl bg-red-100 flex items-center justify-center shadow-inner"><svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></div>';
                     title.textContent = 'Invalid Signature';
-                    title.className = 'text-2xl font-black text-red-700';
+                    title.className = 'text-2xl font-bold text-red-700';
                     desc.textContent = 'The document was modified after signing or is forged.';
                 }
 
                 // Math
                 const elMath = document.getElementById('resMath');
                 elMath.textContent = data.signatureValid ? 'VALID (Ed25519)' : 'FAILED';
-                elMath.className = data.signatureValid ? 'px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800' : 'px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-red-100 text-red-800';
+                elMath.className = data.signatureValid ? 'px-3 py-1 rounded-md text-xs font-bold uppercase bg-emerald-100 text-emerald-800' : 'px-3 py-1 rounded-md text-xs font-bold uppercase bg-red-100 text-red-800';
                 
                 // Ledger
                 const elLedger = document.getElementById('resLedger');
                 elLedger.textContent = data.singleUseConfirmed ? 'CONFIRMED (1 USE)' : 'FAILED / FRAUD';
-                elLedger.className = data.singleUseConfirmed ? 'px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800' : 'px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-red-100 text-red-800';
+                elLedger.className = data.singleUseConfirmed ? 'px-3 py-1 rounded-md text-xs font-bold uppercase bg-emerald-100 text-emerald-800' : 'px-3 py-1 rounded-md text-xs font-bold uppercase bg-red-100 text-red-800';
 
                 // Signer identity
                 const docMatches = data.certificateDocumentMatches;
@@ -988,7 +1277,7 @@
             try {
                 await loadAuthConfig();
                 if (currentUser?.accessToken) {
-                    currentUser = await loadCurrentSession(currentUser.accessToken);
+                    currentUser = await loadCurrentSession(currentUser.accessToken, currentUser.name);
                     localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
                 } else if (authConfig?.authEnabled) {
                     currentUser = null;
