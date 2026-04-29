@@ -21,6 +21,7 @@ func main() {
 	databaseURL := os.Getenv("DATABASE_URL")
 	supabaseURL := os.Getenv("SUPABASE_URL")
 	supabaseJWTSecret := os.Getenv("SUPABASE_JWT_SECRET")
+	supabasePublishableKey := envOrDefault("SUPABASE_PUBLISHABLE_KEY", os.Getenv("SUPABASE_ANON_KEY"))
 	allowedOrigin := envOrDefault("CORS_ALLOW_ORIGIN", "*")
 
 	server, err := api.NewServer(api.Config{
@@ -29,6 +30,7 @@ func main() {
 		MasterKey:         os.Getenv("IPESIGN_MASTER_KEY"),
 		SupabaseURL:       supabaseURL,
 		SupabaseJWTSecret: supabaseJWTSecret,
+		SupabasePublishableKey: supabasePublishableKey,
 		AllowedOrigin:     allowedOrigin,
 	})
 	if err != nil {

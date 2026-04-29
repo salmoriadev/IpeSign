@@ -17,6 +17,7 @@ type Config struct {
 	MasterKey          string
 	SupabaseURL        string
 	SupabaseJWTSecret  string
+	SupabasePublishableKey string
 	AllowedOrigin      string
 }
 
@@ -28,6 +29,8 @@ type Server struct {
 	service *core.Service
 	auth    *auth.Service
 	allowedOrigin string
+	supabaseURL string
+	supabasePublishableKey string
 }
 
 func NewServer(cfg Config) (*Server, error) {
@@ -47,6 +50,8 @@ func NewServer(cfg Config) (*Server, error) {
 			SupabaseJWTSecret: cfg.SupabaseJWTSecret,
 		}),
 		allowedOrigin: firstNonEmpty(cfg.AllowedOrigin, "*"),
+		supabaseURL: strings.TrimSpace(cfg.SupabaseURL),
+		supabasePublishableKey: strings.TrimSpace(cfg.SupabasePublishableKey),
 	}, nil
 }
 
@@ -54,6 +59,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	// API Routes
+	mux.HandleFunc("/v1/auth/config", s.handleAuthConfig)
 	mux.HandleFunc("/v1/auth/me", s.handleAuthMe)
 	mux.HandleFunc("/v1/health", s.handleHealth)
 	mux.HandleFunc("/v1/ca", s.handleCA)
@@ -133,6 +139,19 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, session)
+}
+
+func (s *Server) handleAuthConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"authEnabled":            s.auth.Enabled(),
+		"supabaseUrl":            s.supabaseURL,
+		"supabasePublishableKey": s.supabasePublishableKey,
+	})
 }
 
 func (s *Server) handleSign(w http.ResponseWriter, r *http.Request) {

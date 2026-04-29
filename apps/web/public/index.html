@@ -81,22 +81,30 @@
                     <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                 </div>
                 <h2 class="text-3xl font-bold text-gray-900 tracking-tight">Autenticação</h2>
-                <p class="text-sm text-gray-500 mt-2">Informe sua identidade para assinar.</p>
+                <p class="text-sm text-gray-500 mt-2">Entre com e-mail e senha do Supabase para assinar.</p>
             </div>
             
             <form id="loginForm" class="space-y-6">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Nome Completo</label>
-                    <input type="text" id="loginName" class="w-full px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors" placeholder="Ex: Arthur Salmoria" required>
+                    <input type="text" id="loginName" class="w-full px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors" placeholder="Ex: Arthur Salmoria">
+                    <p class="mt-2 text-xs text-gray-500">Usado ao criar conta e para preencher o assinante inicial.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">E-mail Profissional</label>
                     <input type="email" id="loginEmail" class="w-full px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors" placeholder="Ex: arthur@empresa.com" required>
                 </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Senha</label>
+                    <input type="password" id="loginPassword" class="w-full px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors" placeholder="Sua senha do Supabase" required>
+                </div>
                 
                 <div class="pt-4">
                     <button type="submit" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm text-base font-bold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors">
                         Fazer Login Seguro
+                    </button>
+                    <button type="button" id="signupBtn" class="w-full mt-3 flex justify-center py-3 px-4 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors">
+                        Criar conta no Supabase
                     </button>
                     <button type="button" onclick="goToLanding()" class="w-full mt-3 flex justify-center py-3 px-4 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
                         Cancelar e voltar
@@ -125,7 +133,6 @@
                         </div>
                         
                         <form id="signForm" class="space-y-6">
-                            
                             <!-- Dropzone original -->
                             <div id="signDropzone" class="flex justify-center px-6 pt-8 pb-8 border-2 border-emerald-200 border-dashed rounded-2xl cursor-pointer hover:bg-emerald-50 hover:border-emerald-300 transition-all bg-gray-50/50 group">
                                 <div class="space-y-3 text-center">
@@ -219,7 +226,8 @@
                             <div class="space-y-4 text-sm text-gray-600 border-t pt-6 bg-gray-50/50 -mx-6 px-6 -mb-6 pb-6 rounded-b-2xl relative z-10">
                                 <div class="flex justify-between items-center"><span class="font-semibold text-gray-700">Validação da Matemática (Ed25519):</span> <span id="resMath" class="px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider"></span></div>
                                 <div class="flex justify-between items-center"><span class="font-semibold text-gray-700">Ledger Status (Single-Use):</span> <span id="resLedger" class="px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider"></span></div>
-                                <div class="flex justify-between items-center border-t border-dashed pt-4"><span class="font-semibold text-gray-700">Dono do Certificado:</span> <span id="resIdentity" class="font-bold text-gray-900 truncate max-w-[200px] bg-white px-3 py-1 border rounded-md shadow-sm"></span></div>
+                                <div class="flex justify-between items-center border-t border-dashed pt-4"><span class="font-semibold text-gray-700">Assinante:</span> <span id="resIdentity" class="font-bold text-gray-900 truncate max-w-[200px] bg-white px-3 py-1 border rounded-md shadow-sm"></span></div>
+                                <div class="flex justify-between items-center mt-2"><span class="font-semibold text-gray-700">E-mail do Assinante:</span> <span id="resSignerEmail" class="font-mono text-xs text-gray-500 truncate max-w-[200px]"></span></div>
                                 <div class="flex justify-between items-center mt-2"><span class="font-semibold text-gray-700">Record ID (Blockchain):</span> <span id="resRecordId" class="font-mono text-xs text-gray-500 truncate max-w-[200px]"></span></div>
                             </div>
                         </div>
@@ -232,6 +240,7 @@
     <script>
         // State Management
         let currentUser = JSON.parse(localStorage.getItem('ipesign_user') || 'null');
+        let authConfig = null;
         let pendingAction = null; // 'sign' or 'verify'
         let currentPdfFile = null;
         let pdfViewportScale = 1.0;
@@ -288,6 +297,106 @@
             }
         }
 
+        async function loadAuthConfig() {
+            const response = await fetch('/v1/auth/config');
+            if (!response.ok) {
+                if (response.status === 404) {
+                    throw new Error('A API ainda não expõe /v1/auth/config. Reinicie o backend com a versão mais recente.');
+                }
+                throw new Error(`Falha ao carregar configuração de autenticação (${response.status})`);
+            }
+
+            authConfig = await response.json();
+            return authConfig;
+        }
+
+        async function signUpWithSupabase(name, email, password) {
+            if (!authConfig) {
+                await loadAuthConfig();
+            }
+
+            if (!authConfig?.authEnabled) {
+                throw new Error('A autenticação Supabase não está configurada no servidor.');
+            }
+
+            if (!authConfig?.supabaseUrl || !authConfig?.supabasePublishableKey) {
+                throw new Error('Falta SUPABASE_URL ou SUPABASE_PUBLISHABLE_KEY no backend.');
+            }
+
+            const response = await fetch(`${authConfig.supabaseUrl}/auth/v1/signup`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': authConfig.supabasePublishableKey
+                },
+                body: JSON.stringify({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            full_name: name
+                        }
+                    }
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error_description || data.msg || data.error || 'Falha ao criar conta');
+            }
+
+            return data;
+        }
+
+        async function loginWithSupabase(email, password) {
+            if (!authConfig) {
+                await loadAuthConfig();
+            }
+
+            if (!authConfig?.authEnabled) {
+                throw new Error('A autenticação Supabase não está configurada no servidor.');
+            }
+
+            if (!authConfig?.supabaseUrl || !authConfig?.supabasePublishableKey) {
+                throw new Error('Falta SUPABASE_URL ou SUPABASE_PUBLISHABLE_KEY no backend.');
+            }
+
+            const response = await fetch(`${authConfig.supabaseUrl}/auth/v1/token?grant_type=password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': authConfig.supabasePublishableKey
+                },
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error_description || data.msg || data.error || 'Falha no login');
+            }
+
+            return data;
+        }
+
+        async function loadCurrentSession(accessToken) {
+            const response = await fetch('/v1/auth/me', {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Sessão inválida');
+            }
+
+            return {
+                name: data.displayName || data.email || data.userId,
+                email: data.email || '',
+                accessToken
+            };
+        }
+
         // Tabs Control
         function switchTab(tabId) {
             document.getElementById('content-sign').classList.add('hidden');
@@ -309,19 +418,78 @@
         }
 
         // Auth Logic
-        document.getElementById('loginForm').addEventListener('submit', (e) => {
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const name = document.getElementById('loginName').value;
+            const name = document.getElementById('loginName').value.trim();
             const email = document.getElementById('loginEmail').value;
-            
-            currentUser = { name, email };
-            localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
-            
-            if (pendingAction) {
-                showApp(pendingAction);
-                pendingAction = null;
-            } else {
-                goToLanding();
+            const password = document.getElementById('loginPassword').value;
+            const submitButton = e.submitter;
+            const originalLabel = submitButton.textContent;
+
+            submitButton.disabled = true;
+            submitButton.textContent = 'Autenticando...';
+
+            try {
+                const authData = await loginWithSupabase(email, password);
+                currentUser = await loadCurrentSession(authData.access_token);
+                if (!currentUser.name && name) {
+                    currentUser.name = name;
+                }
+                localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
+
+                if (pendingAction) {
+                    showApp(pendingAction);
+                    pendingAction = null;
+                } else {
+                    goToLanding();
+                }
+            } catch (error) {
+                alert('Erro: ' + error.message);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = originalLabel;
+            }
+        });
+
+        document.getElementById('signupBtn').addEventListener('click', async () => {
+            const name = document.getElementById('loginName').value.trim();
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const signupButton = document.getElementById('signupBtn');
+            const originalLabel = signupButton.textContent;
+
+            if (!name || !email || !password) {
+                alert('Preencha nome, e-mail e senha para criar a conta.');
+                return;
+            }
+
+            signupButton.disabled = true;
+            signupButton.textContent = 'Criando conta...';
+
+            try {
+                const data = await signUpWithSupabase(name, email, password);
+                const accessToken = data.access_token || data.session?.access_token || '';
+
+                if (accessToken) {
+                    currentUser = await loadCurrentSession(accessToken);
+                    currentUser.name = currentUser.name || name;
+                    localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
+                    if (pendingAction) {
+                        showApp(pendingAction);
+                        pendingAction = null;
+                    } else {
+                        goToLanding();
+                    }
+                    alert('Conta criada e sessão iniciada com sucesso.');
+                    return;
+                }
+
+                alert('Conta criada. Verifique seu e-mail caso o Supabase exija confirmação antes do login.');
+            } catch (error) {
+                alert('Erro: ' + error.message);
+            } finally {
+                signupButton.disabled = false;
+                signupButton.textContent = originalLabel;
             }
         });
 
@@ -545,6 +713,7 @@
 
             if (!currentPdfFile) return alert('Selecione um arquivo!');
             if (!currentUser) return alert('Sessão expirada. Faça login novamente.');
+            if (!currentUser.name || !currentUser.email) return alert('A conta autenticada precisa ter nome e e-mail válidos.');
 
             btn.disabled = true;
             const originalBtnText = btn.textContent;
@@ -618,6 +787,9 @@
 
                 const response = await fetch('/v1/documents/sign', {
                     method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${currentUser.accessToken || ''}`
+                    },
                     body: formData
                 });
 
@@ -709,10 +881,14 @@
                 elLedger.textContent = data.singleUseConfirmed ? 'CONFIRMADO (1 USO)' : 'FALHOU / FRAUDE';
                 elLedger.className = data.singleUseConfirmed ? 'px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800' : 'px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-red-100 text-red-800';
 
-                // Identity (we extract this from the Verify API return if possible, or just say it matches)
+                // Signer identity
                 const docMatches = data.certificateDocumentMatches;
-                document.getElementById('resIdentity').textContent = docMatches ? "Atestada pelo IpeSign" : "Incompatível";
+                const signerName = data.signerName || 'N/A';
+                const signerEmail = data.signerEmail || 'N/A';
+                document.getElementById('resIdentity').textContent = signerName;
                 document.getElementById('resIdentity').className = docMatches ? "font-bold text-emerald-600 bg-emerald-50 px-3 py-1 border border-emerald-200 rounded-md shadow-sm truncate max-w-[200px]" : "font-bold text-red-600 bg-red-50 px-3 py-1 border border-red-200 rounded-md shadow-sm truncate max-w-[200px]";
+                document.getElementById('resSignerEmail').textContent = signerEmail;
+                document.getElementById('resSignerEmail').title = signerEmail;
 
                 // Record ID
                 document.getElementById('resRecordId').textContent = data.recordId || 'N/A';
@@ -728,7 +904,24 @@
         });
 
         // Initialize application
-        goToLanding();
+        (async function boot() {
+            updateNav();
+            try {
+                await loadAuthConfig();
+                if (currentUser?.accessToken) {
+                    currentUser = await loadCurrentSession(currentUser.accessToken);
+                    localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
+                } else if (authConfig?.authEnabled) {
+                    currentUser = null;
+                    localStorage.removeItem('ipesign_user');
+                }
+            } catch {
+                currentUser = null;
+                localStorage.removeItem('ipesign_user');
+            }
+
+            goToLanding();
+        })();
     </script>
 </body>
 </html>

@@ -167,6 +167,7 @@ Production envs:
 - `DATABASE_URL`
 - `SUPABASE_URL`
 - optional `SUPABASE_JWT_SECRET`
+- `SUPABASE_PUBLISHABLE_KEY`
 - `CORS_ALLOW_ORIGIN`
 - optional `PORT` supplied by the platform
 

@@ -31,6 +31,7 @@ type Authority interface {
 	RootPrivateKeyPEM() ([]byte, error)
 	IssueDocumentCertificate(documentHash, policyID string, identity authority.CertificateIdentity) (*authority.IssuedDocumentCertificate, error)
 	VerifyIssuedCertificate(cert *x509.Certificate) error
+	VerifyIssuedCertificateTrustOnly(cert *x509.Certificate) error
 }
 
 type SignerIdentity struct {
@@ -95,6 +96,8 @@ type SignResult struct {
 	Mode              string `json:"mode"`
 	FileName          string `json:"fileName"`
 	IssuerID          string `json:"issuerId"`
+	SignerName        string `json:"signerName,omitempty"`
+	SignerEmail       string `json:"signerEmail,omitempty"`
 	DocumentHash      string `json:"documentHash"`
 	SignedHashBase64  string `json:"signedHashBase64"`
 	SignatureBase64   string `json:"signatureBase64"`
@@ -112,6 +115,8 @@ type SignResult struct {
 type VerifyResult struct {
 	Valid                      bool   `json:"valid"`
 	DocumentHash               string `json:"documentHash"`
+	SignerName                 string `json:"signerName,omitempty"`
+	SignerEmail                string `json:"signerEmail,omitempty"`
 	CertificateTrusted         bool   `json:"certificateTrusted"`
 	CertificateDocumentHash    string `json:"certificateDocumentHash"`
 	CertificateDocumentMatches bool   `json:"certificateDocumentMatches"`

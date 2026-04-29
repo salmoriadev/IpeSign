@@ -55,6 +55,7 @@ func (service *Service) SignPDF(pdfBytes []byte, fileName string, policyID strin
 		signatureBytes,
 		signatureHash,
 		recordID,
+		identity,
 		issuedCertificate,
 	)
 	signResult.Mode = "embedded"
@@ -104,27 +105,29 @@ func (service *Service) VerifyEmbeddedPDF(signedPdfBytes []byte) (*VerifyResult,
 
 	signedPdfHash := cryptoutil.SHA256Tagged(signedPdfBytes)
 
-	verificationResult, err := service.verifySignatureInternal(originalPdf, sidecar.CertificatePEM, sidecar.SignatureBase64, signedPdfHash)
+	verificationResult, err := service.verifySignatureInternal(originalPdf, sidecar, signedPdfHash)
 	return verificationResult, err
 }
 
-func (service *Service) verifySignatureInternal(pdfBytes []byte, certificatePEM string, signatureBase64 string, signedPdfHash string) (*VerifyResult, error) {
+func (service *Service) verifySignatureInternal(pdfBytes []byte, sidecar SignResult, signedPdfHash string) (*VerifyResult, error) {
 	// Step 1: Validate input integrity.
-	if err := validateVerifyInputs(pdfBytes, certificatePEM, signatureBase64); err != nil {
+	if err := validateVerifyInputs(pdfBytes, sidecar.CertificatePEM, sidecar.SignatureBase64); err != nil {
 		return nil, err
 	}
 
-	certificate, err := authority.ParseCertificatePEM(certificatePEM)
+	certificate, err := authority.ParseCertificatePEM(sidecar.CertificatePEM)
 	if err != nil {
 		return nil, err
 	}
 
-	// Step 2: Verify the certificate was issued by our trusted Authority and is not expired.
-	if err := service.authority.VerifyIssuedCertificate(certificate); err != nil {
+	// Step 2: Verify the certificate chain is trusted by our Authority.
+	// The ledger is the source of truth for single-use and post-issuance validity,
+	// so verification must not fail only because an ephemeral certificate has expired.
+	if err := service.authority.VerifyIssuedCertificateTrustOnly(certificate); err != nil {
 		return nil, err
 	}
 
-	signatureBytes, err := decodeSignature(signatureBase64)
+	signatureBytes, err := decodeSignature(sidecar.SignatureBase64)
 	if err != nil {
 		return nil, err
 	}
@@ -154,6 +157,8 @@ func (service *Service) verifySignatureInternal(pdfBytes []byte, certificatePEM 
 
 	verifyResult := newVerifyResult(
 		documentHash,
+		sidecar.SignerName,
+		sidecar.SignerEmail,
 		authority.ExtractDocumentHash(certificate),
 		authority.ExtractPolicyID(certificate),
 		authority.ExtractSingleUse(certificate),
@@ -284,6 +289,7 @@ func newSignResult(
 	signatureBytes []byte,
 	signatureHash string,
 	recordID string,
+	identity SignerIdentity,
 	issuedCertificate *authority.IssuedDocumentCertificate,
 ) *SignResult {
 	encodedSignature := base64.StdEncoding.EncodeToString(signatureBytes)
@@ -292,6 +298,8 @@ func newSignResult(
 		Mode:              "hash-only",
 		FileName:          fileName,
 		IssuerID:          issuerID,
+		SignerName:        identity.CommonName,
+		SignerEmail:       identity.EmailAddress,
 		DocumentHash:      documentHash,
 		SignedHashBase64:  encodedSignature,
 		SignatureBase64:   encodedSignature,
@@ -309,6 +317,8 @@ func newSignResult(
 
 func newVerifyResult(
 	documentHash string,
+	signerName string,
+	signerEmail string,
 	certificateDocumentHash string,
 	policyID string,
 	singleUseEnabled bool,
@@ -326,6 +336,8 @@ func newVerifyResult(
 	return &VerifyResult{
 		Valid:                      verificationPassed,
 		DocumentHash:               documentHash,
+		SignerName:                 signerName,
+		SignerEmail:                signerEmail,
 		CertificateTrusted:         true,
 		CertificateDocumentHash:    certificateDocumentHash,
 		CertificateDocumentMatches: certificateMatchesDocument,

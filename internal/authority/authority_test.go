@@ -40,4 +40,8 @@ func TestAuthorityIssuesLeafThroughIssuingCAAndRejectsExpiredLeaf(t *testing.T) 
 	if err := auth.VerifyIssuedCertificate(issued.Certificate); err == nil {
 		t.Fatalf("VerifyIssuedCertificate() expected expiration error")
 	}
+
+	if err := auth.VerifyIssuedCertificateTrustOnly(issued.Certificate); err != nil {
+		t.Fatalf("VerifyIssuedCertificateTrustOnly() error = %v", err)
+	}
 }

@@ -383,6 +383,27 @@ func (a *Authority) IssueDocumentCertificate(documentHash, policyID string, iden
 }
 
 func (a *Authority) VerifyIssuedCertificate(cert *x509.Certificate) error {
+	if err := a.verifyIssuedCertificateWithTime(cert, a.clock()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *Authority) VerifyIssuedCertificateTrustOnly(cert *x509.Certificate) error {
+	referenceTime := cert.NotBefore
+	if referenceTime.IsZero() {
+		referenceTime = a.clock()
+	}
+
+	if err := a.verifyIssuedCertificateWithTime(cert, referenceTime); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *Authority) verifyIssuedCertificateWithTime(cert *x509.Certificate, currentTime time.Time) error {
 	if cert == nil {
 		return fmt.Errorf("certificate is required")
 	}
@@ -404,7 +425,7 @@ func (a *Authority) VerifyIssuedCertificate(cert *x509.Certificate) error {
 	_, err := cert.Verify(x509.VerifyOptions{
 		Roots:         roots,
 		Intermediates: intermediates,
-		CurrentTime:   a.clock(),
+		CurrentTime:   currentTime,
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageCodeSigning},
 	})
 	if err != nil {

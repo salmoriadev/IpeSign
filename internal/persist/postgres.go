@@ -262,6 +262,10 @@ func splitPSQLFields(raw string) []string {
 		out = append(out, line)
 	}
 
+	if len(out) == 1 && strings.Contains(out[0], "|") {
+		return strings.Split(out[0], "|")
+	}
+
 	return out
 }
 
