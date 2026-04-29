@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IpeSign - Assinatura Digital</title>
+    <title>IpeSign - Digital Signature</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
-    <!-- Adicionando PDF.js para renderizar o PDF no navegador -->
+    <!-- Adds PDF.js to render PDFs in the browser -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -37,11 +37,11 @@
                 </div>
                 <div class="flex items-center space-x-4">
                     <div id="navUserArea" class="hidden items-center space-x-4">
-                        <span class="text-sm text-gray-600">Olá, <span id="navUserName" class="font-bold"></span></span>
-                        <button onclick="logout()" class="text-sm text-red-600 hover:text-red-800 font-medium">Sair</button>
+                        <span class="text-sm text-gray-600">Hello, <span id="navUserName" class="font-bold"></span></span>
+                        <button onclick="logout()" class="text-sm text-red-600 hover:text-red-800 font-medium">Log out</button>
                     </div>
                     <button id="navLoginBtn" onclick="showLogin()" class="text-sm font-medium text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-4 py-2 rounded-lg transition-colors">
-                        Entrar na Conta
+                        Sign In
                     </button>
                 </div>
             </div>
@@ -53,24 +53,24 @@
         
         <!-- View: Landing -->
         <div id="view-landing" class="max-w-4xl w-full text-center py-12">
-            <h1 class="text-5xl sm:text-6xl font-extrabold text-gray-900 mb-6 tracking-tight">Cartório Digital Simplificado</h1>
-            <p class="text-xl text-gray-500 mb-12 max-w-2xl mx-auto leading-relaxed">Assine e audite contratos na sua própria máquina usando o modelo <span class="font-semibold text-gray-700">Single-Use Keys</span> apoiado por uma blockchain 100% transparente, rastreável e imutável.</p>
+            <h1 class="text-5xl sm:text-6xl font-extrabold text-gray-900 mb-6 tracking-tight">Simplified Digital Notary</h1>
+            <p class="text-xl text-gray-500 mb-12 max-w-2xl mx-auto leading-relaxed">Sign and audit contracts on your own machine using the <span class="font-semibold text-gray-700">Single-Use Keys</span> model backed by a 100% transparent, traceable, and immutable blockchain.</p>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
                 <button onclick="requireAuth('sign')" class="flex flex-col items-center p-10 bg-white border-2 border-emerald-100 rounded-3xl shadow-sm hover:shadow-lg hover:border-emerald-400 transition-all duration-300 group">
                     <div class="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-emerald-500 group-hover:text-white transition-all">
                         <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Assinar PDF</h3>
-                    <p class="text-sm text-gray-500 text-center">Gere um certificado efêmero e embale a assinatura no próprio arquivo.</p>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Sign PDF</h3>
+                    <p class="text-sm text-gray-500 text-center">Generate an ephemeral certificate and package the signature inside the file.</p>
                 </button>
 
                 <button onclick="requireAuth('verify')" class="flex flex-col items-center p-10 bg-white border-2 border-blue-100 rounded-3xl shadow-sm hover:shadow-lg hover:border-blue-400 transition-all duration-300 group">
                     <div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-blue-500 group-hover:text-white transition-all">
                         <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Verificar PDF</h3>
-                    <p class="text-sm text-gray-500 text-center">Inspecione a criptografia Ed25519 e previna reuso na Blockchain.</p>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Verify PDF</h3>
+                    <p class="text-sm text-gray-500 text-center">Inspect Ed25519 cryptography and prevent reuse on the blockchain.</p>
                 </button>
             </div>
         </div>
@@ -82,34 +82,34 @@
                 <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-50 mb-4">
                     <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                 </div>
-                <h2 class="text-3xl font-bold text-gray-900 tracking-tight">Autenticação</h2>
-                <p class="text-sm text-gray-500 mt-2">Entre com e-mail e senha do Supabase para assinar.</p>
+                <h2 class="text-3xl font-bold text-gray-900 tracking-tight">Authentication</h2>
+                <p class="text-sm text-gray-500 mt-2">Sign in with your Supabase email and password to sign.</p>
             </div>
             
             <form id="loginForm" class="space-y-6">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Nome Completo</label>
-                    <input type="text" id="loginName" class="w-full px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors" placeholder="Ex: Arthur Salmoria">
-                    <p class="mt-2 text-xs text-gray-500">Usado ao criar conta e para preencher o assinante inicial.</p>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
+                    <input type="text" id="loginName" class="w-full px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors" placeholder="E.g. Arthur Salmoria">
+                    <p class="mt-2 text-xs text-gray-500">Used to create the account and fill the initial signer.</p>
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">E-mail Profissional</label>
-                    <input type="email" id="loginEmail" class="w-full px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors" placeholder="Ex: arthur@empresa.com" required>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Work Email</label>
+                    <input type="email" id="loginEmail" class="w-full px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors" placeholder="E.g. arthur@company.com" required>
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Senha</label>
-                    <input type="password" id="loginPassword" class="w-full px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors" placeholder="Sua senha do Supabase" required>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Password</label>
+                    <input type="password" id="loginPassword" class="w-full px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 focus:bg-white transition-colors" placeholder="Your Supabase password" required>
                 </div>
                 
                 <div class="pt-4">
                     <button type="submit" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm text-base font-bold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors">
-                        Fazer Login Seguro
+                        Secure Sign In
                     </button>
                     <button type="button" id="signupBtn" class="w-full mt-3 flex justify-center py-3 px-4 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors">
-                        Criar conta no Supabase
+                        Create Supabase Account
                     </button>
                     <button type="button" onclick="goToLanding()" class="w-full mt-3 flex justify-center py-3 px-4 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
-                        Cancelar e voltar
+                        Cancel and Go Back
                     </button>
                 </div>
             </form>
@@ -121,8 +121,8 @@
             <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mb-8">
                 <div class="border-b border-gray-100 bg-gray-50/50">
                     <nav class="flex" aria-label="Tabs">
-                        <button onclick="switchTab('sign')" id="tab-sign" class="w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-emerald-500 text-emerald-600 transition-colors">Assinatura Digital</button>
-                        <button onclick="switchTab('verify')" id="tab-verify" class="w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200 transition-colors">Validador de Documentos</button>
+                        <button onclick="switchTab('sign')" id="tab-sign" class="w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-emerald-500 text-emerald-600 transition-colors">Digital Signature</button>
+                        <button onclick="switchTab('verify')" id="tab-verify" class="w-1/2 py-5 px-1 text-center border-b-2 font-bold text-base border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200 transition-colors">Document Validator</button>
                     </nav>
                 </div>
                 
@@ -130,12 +130,12 @@
                     <!-- Sign Tab Content -->
                     <div id="content-sign" class="max-w-xl mx-auto">
                         <div class="text-center mb-8 bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
-                            <h2 class="text-lg font-bold text-gray-900">Assinando como: <span id="signCurrentName" class="text-emerald-700"></span></h2>
+                            <h2 class="text-lg font-bold text-gray-900">Signing as: <span id="signCurrentName" class="text-emerald-700"></span></h2>
                             <p id="signCurrentEmail" class="text-sm text-gray-600 font-mono mt-1"></p>
                         </div>
                         
                         <form id="signForm" class="space-y-6">
-                            <!-- Dropzone original -->
+                            <!-- Original dropzone -->
                             <div id="signDropzone" class="flex justify-center px-6 pt-8 pb-8 border-2 border-emerald-200 border-dashed rounded-2xl cursor-pointer hover:bg-emerald-50 hover:border-emerald-300 transition-all bg-gray-50/50 group">
                                 <div class="space-y-3 text-center">
                                     <svg class="mx-auto h-16 w-16 text-emerald-300 group-hover:text-emerald-500 transition-colors" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
@@ -143,47 +143,50 @@
                                     </svg>
                                     <div class="flex text-base text-gray-600 justify-center">
                                         <span class="relative bg-transparent rounded-md font-bold text-emerald-600 hover:text-emerald-700 focus-within:outline-none">
-                                            <span>Clique para fazer o upload do PDF</span>
+                                            <span>Click to upload the PDF</span>
                                             <input id="signFile" name="signFile" type="file" class="sr-only" accept=".pdf" required>
                                         </span>
                                     </div>
-                                    <p class="text-sm text-gray-500" id="signFileName">Ou arraste e solte o arquivo aqui</p>
+                                    <p class="text-sm text-gray-500" id="signFileName">Or drag and drop the file here</p>
                                 </div>
                             </div>
 
                             <!-- Visual Preview Box (Hidden initially) -->
                             <div id="pdfPreviewSection" class="hidden space-y-4">
                                 <div class="flex justify-between items-center mb-2">
-                                    <p class="text-sm font-semibold text-gray-700">Arraste o selo para posicionar a assinatura visual:</p>
-                                    <button type="button" onclick="resetFile()" class="text-sm text-red-500 hover:text-red-700 font-medium">Trocar PDF</button>
+                                    <p class="text-sm font-semibold text-gray-700">Drag the stamp to position the visual signature:</p>
+                                    <button type="button" onclick="resetFile()" class="text-sm text-red-500 hover:text-red-700 font-medium">Replace PDF</button>
                                 </div>
                                 
                                 <div id="pdfPagination" class="hidden items-center justify-center space-x-4 mb-2">
-                                    <button type="button" id="prevPageBtn" onclick="changePage(-1)" class="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">&lt; Anterior</button>
-                                    <span class="text-sm font-medium text-gray-600">Página <span id="currentPageNum">1</span> de <span id="totalPagesNum">1</span></span>
-                                    <button type="button" id="nextPageBtn" onclick="changePage(1)" class="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">Próxima &gt;</button>
+                                    <button type="button" id="prevPageBtn" onclick="changePage(-1)" class="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">&lt; Previous</button>
+                                    <span class="text-sm font-medium text-gray-600">Page <span id="currentPageNum">1</span> of <span id="totalPagesNum">1</span></span>
+                                    <button type="button" id="nextPageBtn" onclick="changePage(1)" class="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">Next &gt;</button>
                                 </div>
 
                                 <div class="w-full overflow-x-auto bg-gray-100 p-4 rounded-xl border border-gray-200">
                                     <div id="pdfPreviewContainer" class="relative mx-auto bg-white shadow-lg" style="width: max-content;">
                                         <canvas id="pdfCanvas" class="block"></canvas>
-                                        <div id="draggableStamp" class="absolute cursor-move border border-emerald-600 bg-emerald-50/90 text-emerald-800 text-[8px] p-1.5 shadow-sm select-none z-10 leading-tight" style="width: 180px; height: 35px; top: 10px; left: 10px; box-sizing: border-box;">
-                                            <div class="font-bold truncate">Assinado digitalmente por: <span id="stampName"></span></div>
-                                            <div class="truncate">Email: <span id="stampEmail"></span></div>
-                                            <div class="truncate">Data: <span id="stampDate"></span></div>
+                                        <div id="draggableStamp" class="absolute cursor-move border border-gray-300 bg-white/95 text-gray-800 text-[8px] p-2 shadow-sm select-none z-10 leading-tight rounded-md flex items-center gap-2" style="width: 260px; height: 62px; top: 10px; left: 10px; box-sizing: border-box;">
+                                            <img src="/ipesign-city-logo.png" alt="" class="w-20 shrink-0 opacity-90">
+                                            <div class="min-w-0 flex-1 space-y-0.5">
+                                                <div class="font-semibold truncate">Digitally signed by: <span id="stampName"></span></div>
+                                                <div class="truncate">Email: <span id="stampEmail"></span></div>
+                                                <div class="truncate">Date: <span id="stampDate"></span></div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                                 <div class="flex items-center">
                                     <input type="checkbox" id="noStampCheck" class="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded">
                                     <label for="noStampCheck" class="ml-2 block text-sm text-gray-900">
-                                        Não embutir selo visual (apenas assinatura criptográfica invisível)
+                                        Do not embed a visual stamp (invisible cryptographic signature only)
                                     </label>
                                 </div>
                             </div>
 
                             <button type="submit" id="signBtn" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-md text-lg font-bold text-white bg-emerald-600 hover:bg-emerald-700 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all duration-200">
-                                Injetar Assinatura Criptográfica
+                                Inject Cryptographic Signature
                             </button>
                         </form>
                     </div>
@@ -191,8 +194,8 @@
                     <!-- Verify Tab Content -->
                     <div id="content-verify" class="hidden max-w-xl mx-auto">
                         <div class="text-center mb-10">
-                            <h2 class="text-2xl font-bold text-gray-900">Auditoria Pública</h2>
-                            <p class="text-sm text-gray-500 mt-2 leading-relaxed">Inspecione se um documento possui injeção autêntica IpeSign e se não foi vítima de gasto-duplo (reuso) na Blockchain.</p>
+                            <h2 class="text-2xl font-bold text-gray-900">Public Audit</h2>
+                            <p class="text-sm text-gray-500 mt-2 leading-relaxed">Inspect whether a document contains an authentic IpeSign injection and has not been subject to double spending (reuse) on the blockchain.</p>
                         </div>
 
                         <form id="verifyForm" class="space-y-6">
@@ -203,16 +206,16 @@
                                     </svg>
                                     <div class="flex text-base text-gray-600 justify-center">
                                         <span class="relative bg-transparent rounded-md font-bold text-blue-600 hover:text-blue-700 focus-within:outline-none">
-                                            <span>Upload do Documento Assinado</span>
+                                            <span>Upload Signed Document</span>
                                             <input id="verifyFile" name="verifyFile" type="file" class="sr-only" accept=".pdf" required>
                                         </span>
                                     </div>
-                                    <p class="text-sm text-gray-500" id="verifyFileName">Arquivos com final _signed.pdf</p>
+                                    <p class="text-sm text-gray-500" id="verifyFileName">Files ending in _signed.pdf</p>
                                 </div>
                             </div>
 
                             <button type="submit" id="verifyBtn" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-md text-lg font-bold text-white bg-blue-600 hover:bg-blue-700 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200">
-                                Auditar Documento Agora
+                                Audit Document Now
                             </button>
                         </form>
 
@@ -226,10 +229,10 @@
                                 </div>
                             </div>
                             <div class="space-y-4 text-sm text-gray-600 border-t pt-6 bg-gray-50/50 -mx-6 px-6 -mb-6 pb-6 rounded-b-2xl relative z-10">
-                                <div class="flex justify-between items-center"><span class="font-semibold text-gray-700">Validação da Matemática (Ed25519):</span> <span id="resMath" class="px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider"></span></div>
+                                <div class="flex justify-between items-center"><span class="font-semibold text-gray-700">Mathematical Validation (Ed25519):</span> <span id="resMath" class="px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider"></span></div>
                                 <div class="flex justify-between items-center"><span class="font-semibold text-gray-700">Ledger Status (Single-Use):</span> <span id="resLedger" class="px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider"></span></div>
-                                <div class="flex justify-between items-center border-t border-dashed pt-4"><span class="font-semibold text-gray-700">Assinante:</span> <span id="resIdentity" class="font-bold text-gray-900 truncate max-w-[200px] bg-white px-3 py-1 border rounded-md shadow-sm"></span></div>
-                                <div class="flex justify-between items-center mt-2"><span class="font-semibold text-gray-700">E-mail do Assinante:</span> <span id="resSignerEmail" class="font-mono text-xs text-gray-500 truncate max-w-[200px]"></span></div>
+                                <div class="flex justify-between items-center border-t border-dashed pt-4"><span class="font-semibold text-gray-700">Signer:</span> <span id="resIdentity" class="font-bold text-gray-900 truncate max-w-[200px] bg-white px-3 py-1 border rounded-md shadow-sm"></span></div>
+                                <div class="flex justify-between items-center mt-2"><span class="font-semibold text-gray-700">Signer Email:</span> <span id="resSignerEmail" class="font-mono text-xs text-gray-500 truncate max-w-[200px]"></span></div>
                                 <div class="flex justify-between items-center mt-2"><span class="font-semibold text-gray-700">Record ID (Blockchain):</span> <span id="resRecordId" class="font-mono text-xs text-gray-500 truncate max-w-[200px]"></span></div>
                             </div>
                         </div>
@@ -249,6 +252,7 @@
         let pdfDocProxy = null;
         let currentPreviewPage = 1;
         let totalPreviewPages = 1;
+        const signatureLogoSrc = '/ipesign-city-logo.png';
 
         // Views Control
         function hideAllViews() {
@@ -303,9 +307,9 @@
             const response = await fetch('/v1/auth/config');
             if (!response.ok) {
                 if (response.status === 404) {
-                    throw new Error('A API ainda não expõe /v1/auth/config. Reinicie o backend com a versão mais recente.');
+                    throw new Error('The API does not expose /v1/auth/config yet. Restart the backend with the latest version.');
                 }
-                throw new Error(`Falha ao carregar configuração de autenticação (${response.status})`);
+                throw new Error(`Failed to load authentication configuration (${response.status})`);
             }
 
             authConfig = await response.json();
@@ -318,11 +322,11 @@
             }
 
             if (!authConfig?.authEnabled) {
-                throw new Error('A autenticação Supabase não está configurada no servidor.');
+                throw new Error('Supabase authentication is not configured on the server.');
             }
 
             if (!authConfig?.supabaseUrl || !authConfig?.supabasePublishableKey) {
-                throw new Error('Falta SUPABASE_URL ou SUPABASE_PUBLISHABLE_KEY no backend.');
+                throw new Error('SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is missing in the backend.');
             }
 
             const response = await fetch(`${authConfig.supabaseUrl}/auth/v1/signup`, {
@@ -344,7 +348,7 @@
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.error_description || data.msg || data.error || 'Falha ao criar conta');
+                throw new Error(data.error_description || data.msg || data.error || 'Failed to create account');
             }
 
             return data;
@@ -356,11 +360,11 @@
             }
 
             if (!authConfig?.authEnabled) {
-                throw new Error('A autenticação Supabase não está configurada no servidor.');
+                throw new Error('Supabase authentication is not configured on the server.');
             }
 
             if (!authConfig?.supabaseUrl || !authConfig?.supabasePublishableKey) {
-                throw new Error('Falta SUPABASE_URL ou SUPABASE_PUBLISHABLE_KEY no backend.');
+                throw new Error('SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is missing in the backend.');
             }
 
             const response = await fetch(`${authConfig.supabaseUrl}/auth/v1/token?grant_type=password`, {
@@ -374,7 +378,7 @@
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.error_description || data.msg || data.error || 'Falha no login');
+                throw new Error(data.error_description || data.msg || data.error || 'Login failed');
             }
 
             return data;
@@ -389,7 +393,7 @@
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.error || 'Sessão inválida');
+                throw new Error(data.error || 'Invalid session');
             }
 
             return {
@@ -429,7 +433,7 @@
             const originalLabel = submitButton.textContent;
 
             submitButton.disabled = true;
-            submitButton.textContent = 'Autenticando...';
+            submitButton.textContent = 'Authenticating...';
 
             try {
                 const authData = await loginWithSupabase(email, password);
@@ -446,7 +450,7 @@
                     goToLanding();
                 }
             } catch (error) {
-                alert('Erro: ' + error.message);
+                alert('Error: ' + error.message);
             } finally {
                 submitButton.disabled = false;
                 submitButton.textContent = originalLabel;
@@ -461,12 +465,12 @@
             const originalLabel = signupButton.textContent;
 
             if (!name || !email || !password) {
-                alert('Preencha nome, e-mail e senha para criar a conta.');
+                alert('Fill in your name, email, and password to create the account.');
                 return;
             }
 
             signupButton.disabled = true;
-            signupButton.textContent = 'Criando conta...';
+            signupButton.textContent = 'Creating account...';
 
             try {
                 const data = await signUpWithSupabase(name, email, password);
@@ -482,13 +486,13 @@
                     } else {
                         goToLanding();
                     }
-                    alert('Conta criada e sessão iniciada com sucesso.');
+                    alert('Account created and session started successfully.');
                     return;
                 }
 
-                alert('Conta criada. Verifique seu e-mail caso o Supabase exija confirmação antes do login.');
+                alert('Account created. Check your email if Supabase requires confirmation before login.');
             } catch (error) {
-                alert('Erro: ' + error.message);
+                alert('Error: ' + error.message);
             } finally {
                 signupButton.disabled = false;
                 signupButton.textContent = originalLabel;
@@ -642,15 +646,15 @@
                 document.getElementById('noStampCheck').checked = false;
                 stamp.classList.remove('hidden');
             } catch (err) {
-                console.error("Erro ao carregar preview do PDF: ", err);
-                alert("Erro ao ler PDF. Tentando continuar sem preview visual.");
+                console.error("Error loading PDF preview: ", err);
+                alert("Error reading PDF. Trying to continue without a visual preview.");
             }
         }
 
         function resetFile() {
             currentPdfFile = null;
             document.getElementById('signFile').value = '';
-            document.getElementById('signFileName').textContent = 'Ou arraste e solte o arquivo aqui';
+            document.getElementById('signFileName').textContent = 'Or drag and drop the file here';
             document.getElementById('signFileName').classList.remove('font-bold', 'text-emerald-600');
             document.getElementById('pdfPreviewSection').classList.add('hidden');
             document.getElementById('signDropzone').classList.remove('hidden');
@@ -713,26 +717,59 @@
             const btn = document.getElementById('signBtn');
             const noStamp = document.getElementById('noStampCheck').checked;
 
-            if (!currentPdfFile) return alert('Selecione um arquivo!');
-            if (!currentUser) return alert('Sessão expirada. Faça login novamente.');
-            if (!currentUser.name || !currentUser.email) return alert('A conta autenticada precisa ter nome e e-mail válidos.');
+            if (!currentPdfFile) return alert('Select a file!');
+            if (!currentUser) return alert('Session expired. Sign in again.');
+            if (!currentUser.name || !currentUser.email) return alert('The authenticated account must have a valid name and email.');
 
             btn.disabled = true;
             const originalBtnText = btn.textContent;
-            btn.textContent = 'Codificando Criptografia...';
+            btn.textContent = 'Encoding Cryptography...';
             btn.classList.add('opacity-75', 'cursor-not-allowed');
 
             try {
                 let finalFileOrBlob = currentPdfFile;
 
                 if (!noStamp && typeof PDFLib !== 'undefined') {
-                    btn.textContent = 'Aplicando Carimbo Visual...';
+                    btn.textContent = 'Applying Visual Stamp...';
                     try {
                         const arrayBuffer = await finalFileOrBlob.arrayBuffer();
                         const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
                         const pages = pdfDoc.getPages();
+                        const regularFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+                        const boldFont = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+                        let signatureLogo = null;
+
+                        const fitTextToWidth = (text, font, size, maxWidth) => {
+                            if (font.widthOfTextAtSize(text, size) <= maxWidth) {
+                                return text;
+                            }
+
+                            const ellipsis = '...';
+                            let low = 0;
+                            let high = text.length;
+                            while (low < high) {
+                                const mid = Math.ceil((low + high) / 2);
+                                const candidate = text.slice(0, mid).trimEnd() + ellipsis;
+                                if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+                                    low = mid;
+                                } else {
+                                    high = mid - 1;
+                                }
+                            }
+
+                            return text.slice(0, low).trimEnd() + ellipsis;
+                        };
+
+                        try {
+                            const logoResponse = await fetch(signatureLogoSrc);
+                            if (logoResponse.ok) {
+                                signatureLogo = await pdfDoc.embedPng(await logoResponse.arrayBuffer());
+                            }
+                        } catch (logoErr) {
+                            console.error('Error loading signature logo, continuing with text-only stamp', logoErr);
+                        }
                         
-                        // Garante que o carimbo aplique na página que o usuário escolheu ver
+                        // Ensures the stamp is applied to the page selected by the user.
                         if (pages.length >= currentPreviewPage) {
                             const targetPage = pages[currentPreviewPage - 1]; // 0-indexed
                             const { height } = targetPage.getSize();
@@ -751,35 +788,75 @@
                             const textWidth = uiStampWidth / pdfViewportScale;
                             const textHeight = uiStampHeight / pdfViewportScale;
 
-                            const text = `Assinado digitalmente por: ${currentUser.name}\nEmail: ${currentUser.email}\nData: ${new Date().toLocaleString()}`;
-                            
-                            // Draw background box
+                            const padding = Math.max(5, textHeight * 0.12);
+                            let contentX = pdfX + padding;
+                            const contentTop = pdfY + textHeight - padding;
+                            const contentHeight = textHeight - (padding * 2);
+
                             targetPage.drawRectangle({
                                 x: pdfX,
                                 y: pdfY,
                                 width: textWidth,
                                 height: textHeight,
-                                color: PDFLib.rgb(0.95, 0.98, 0.95), // very light emerald
-                                borderColor: PDFLib.rgb(0.04, 0.4, 0.29),
+                                color: PDFLib.rgb(1, 1, 1),
+                                borderColor: PDFLib.rgb(0.82, 0.85, 0.88),
                                 borderWidth: 1,
                             });
 
-                            // Draw text (ajustado para a nova altura de 35px e fonte menor)
-                            targetPage.drawText(text, {
-                                x: pdfX + 4,
-                                y: pdfY + textHeight - 10,
-                                size: 7, 
-                                color: PDFLib.rgb(0.04, 0.4, 0.29), // emerald-800
-                                lineHeight: 9
+                            if (signatureLogo) {
+                                const logoAspectRatio = signatureLogo.width / signatureLogo.height;
+                                let logoWidth = textWidth * 0.28;
+                                let logoHeight = logoWidth / logoAspectRatio;
+
+                                if (logoHeight > contentHeight) {
+                                    logoHeight = contentHeight;
+                                    logoWidth = logoHeight * logoAspectRatio;
+                                }
+
+                                targetPage.drawImage(signatureLogo, {
+                                    x: contentX,
+                                    y: pdfY + ((textHeight - logoHeight) / 2),
+                                    width: logoWidth,
+                                    height: logoHeight,
+                                });
+
+                                contentX += logoWidth + padding;
+                            }
+
+                            const titleSize = Math.max(7, Math.min(9, textHeight * 0.16));
+                            const detailSize = Math.max(6, Math.min(8, textHeight * 0.13));
+                            const lineGap = Math.max(3, textHeight * 0.06);
+                            const availableTextWidth = pdfX + textWidth - padding - contentX;
+
+                            targetPage.drawText(fitTextToWidth(`Digitally signed by: ${currentUser.name}`, boldFont, titleSize, availableTextWidth), {
+                                x: contentX,
+                                y: contentTop - titleSize,
+                                size: titleSize,
+                                font: boldFont,
+                                color: PDFLib.rgb(0.12, 0.16, 0.22),
+                            });
+                            targetPage.drawText(fitTextToWidth(`Email: ${currentUser.email}`, regularFont, detailSize, availableTextWidth), {
+                                x: contentX,
+                                y: contentTop - titleSize - detailSize - lineGap,
+                                size: detailSize,
+                                font: regularFont,
+                                color: PDFLib.rgb(0.35, 0.39, 0.45),
+                            });
+                            targetPage.drawText(fitTextToWidth(`Date: ${new Date().toLocaleString()}`, regularFont, detailSize, availableTextWidth), {
+                                x: contentX,
+                                y: contentTop - titleSize - (detailSize * 2) - (lineGap * 2),
+                                size: detailSize,
+                                font: regularFont,
+                                color: PDFLib.rgb(0.35, 0.39, 0.45),
                             });
 
                             const modifiedPdfBytes = await pdfDoc.save();
                             finalFileOrBlob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
                         }
                     } catch (stampErr) {
-                        console.error('Erro ao carimbar visualmente, prosseguindo com arquivo original', stampErr);
+                        console.error('Error applying visual stamp, continuing with the original file', stampErr);
                     }
-                    btn.textContent = 'Codificando Criptografia...';
+                    btn.textContent = 'Encoding Cryptography...';
                 }
 
                 const formData = new FormData();
@@ -797,7 +874,7 @@
 
                 if (!response.ok) {
                     const err = await response.json();
-                    throw new Error(err.error || 'Erro ao assinar');
+                    throw new Error(err.error || 'Error signing');
                 }
 
                 // Download the signed PDF
@@ -814,10 +891,10 @@
                 a.remove();
                 
                 resetFile();
-                alert('Documento assinado com sucesso! O download começará automaticamente.');
+                alert('Document signed successfully. The download will start automatically.');
                 
             } catch (err) {
-                alert('Erro: ' + err.message);
+                alert('Error: ' + err.message);
             } finally {
                 btn.disabled = false;
                 btn.textContent = originalBtnText;
@@ -832,14 +909,14 @@
             const btn = document.getElementById('verifyBtn');
             const resCard = document.getElementById('verifyResult');
 
-            if (!fileInput.files.length) return alert('Selecione um arquivo assinado!');
+            if (!fileInput.files.length) return alert('Select a signed file!');
 
             const formData = new FormData();
             formData.append('pdf', fileInput.files[0]);
 
             btn.disabled = true;
             const originalBtnText = btn.textContent;
-            btn.textContent = 'Calculando Hashes...';
+            btn.textContent = 'Calculating Hashes...';
             btn.classList.add('opacity-75', 'cursor-not-allowed');
             resCard.classList.add('hidden');
 
@@ -852,7 +929,7 @@
                 const data = await response.json();
                 
                 if (!response.ok) {
-                    throw new Error(data.error || 'Erro ao verificar');
+                    throw new Error(data.error || 'Error verifying');
                 }
 
                 resCard.classList.remove('hidden');
@@ -863,24 +940,24 @@
                 
                 if (data.valid) {
                     icon.innerHTML = '<div class="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center shadow-inner"><svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div>';
-                    title.textContent = 'Assinatura Válida';
+                    title.textContent = 'Valid Signature';
                     title.className = 'text-2xl font-black text-emerald-700';
-                    desc.textContent = 'Documento autêntico e inalterado.';
+                    desc.textContent = 'Document is authentic and unchanged.';
                 } else {
                     icon.innerHTML = '<div class="w-14 h-14 rounded-2xl bg-red-100 flex items-center justify-center shadow-inner"><svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></div>';
-                    title.textContent = 'Assinatura Inválida';
+                    title.textContent = 'Invalid Signature';
                     title.className = 'text-2xl font-black text-red-700';
-                    desc.textContent = 'O documento foi modificado após a assinatura ou é falso.';
+                    desc.textContent = 'The document was modified after signing or is forged.';
                 }
 
                 // Math
                 const elMath = document.getElementById('resMath');
-                elMath.textContent = data.signatureValid ? 'VÁLIDA (Ed25519)' : 'FALHOU';
+                elMath.textContent = data.signatureValid ? 'VALID (Ed25519)' : 'FAILED';
                 elMath.className = data.signatureValid ? 'px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800' : 'px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-red-100 text-red-800';
                 
                 // Ledger
                 const elLedger = document.getElementById('resLedger');
-                elLedger.textContent = data.singleUseConfirmed ? 'CONFIRMADO (1 USO)' : 'FALHOU / FRAUDE';
+                elLedger.textContent = data.singleUseConfirmed ? 'CONFIRMED (1 USE)' : 'FAILED / FRAUD';
                 elLedger.className = data.singleUseConfirmed ? 'px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800' : 'px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-red-100 text-red-800';
 
                 // Signer identity
@@ -897,7 +974,7 @@
                 document.getElementById('resRecordId').title = data.recordId || '';
 
             } catch (err) {
-                alert('Erro: ' + err.message);
+                alert('Error: ' + err.message);
             } finally {
                 btn.disabled = false;
                 btn.textContent = originalBtnText;
