@@ -100,15 +100,20 @@
                 <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-50 ring-1 ring-emerald-100 shadow-inner mb-4">
                     <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                 </div>
-                <h2 class="text-3xl font-semibold text-slate-950">Authentication</h2>
-                <p class="text-sm text-slate-500 mt-2">Sign in with your Supabase email and password to sign.</p>
+                <h2 id="authTitle" class="text-3xl font-semibold text-slate-950">Authentication</h2>
+                <p id="authSubtitle" class="text-sm text-slate-500 mt-2">Sign in with your Supabase email and password to sign.</p>
             </div>
             
             <form id="loginForm" class="space-y-6">
-                <div>
+                <div id="loginNameGroup" class="hidden">
                     <label class="block text-sm font-semibold text-slate-700 mb-2">Full Name</label>
                     <input type="text" id="loginName" class="w-full px-5 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 bg-white/80 focus:bg-white shadow-sm transition-colors" placeholder="E.g. Arthur Salmoria">
-                    <p class="mt-2 text-xs text-slate-500">Used to create the account and keep the saved signer name in sync.</p>
+                    <p class="mt-2 text-xs text-slate-500">Saved in the signer profile during account creation.</p>
+                </div>
+                <div id="loginIpeAddressGroup" class="hidden">
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Ipe Address</label>
+                    <input type="text" id="loginIpeAddress" class="w-full px-5 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 bg-white/80 focus:bg-white shadow-sm transition-colors" placeholder="E.g. ipecity.eth">
+                    <p class="mt-2 text-xs text-slate-500">Stored with the account profile during creation.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-slate-700 mb-2">Work Email</label>
@@ -120,11 +125,11 @@
                 </div>
                 
                 <div class="pt-4">
-                    <button type="submit" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm hover:shadow-md text-base font-bold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 transition-all">
+                    <button type="submit" id="loginSubmitBtn" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm hover:shadow-md text-base font-bold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 transition-all">
                         Secure Sign In
                     </button>
                     <button type="button" id="signupBtn" class="w-full mt-3 flex justify-center py-3 px-4 border border-emerald-200/80 rounded-xl text-sm font-semibold text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100 transition-colors">
-                        Create Supabase Account
+                        Create Account
                     </button>
                     <button type="button" onclick="goToLanding()" class="w-full mt-3 flex justify-center py-3 px-4 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
                         Cancel and Go Back
@@ -270,6 +275,7 @@
         let pdfDocProxy = null;
         let currentPreviewPage = 1;
         let totalPreviewPages = 1;
+        let authMode = 'sign-in';
         const signatureLogoSrc = '/ipesign-city-logo.png';
         const registeredNamesStorageKey = 'ipesign_registered_names';
 
@@ -304,6 +310,7 @@
         function showLogin() {
             hideAllViews();
             document.getElementById('view-login').classList.remove('hidden');
+            setAuthMode('sign-in');
         }
 
         function showApp(tab = 'sign') {
@@ -335,7 +342,11 @@
             return authConfig;
         }
 
-        async function signUpWithSupabase(name, email, password) {
+        function cleanIpeAddress(value) {
+            return (value || '').trim();
+        }
+
+        async function signUpWithSupabase(name, email, password, ipeAddress) {
             if (!authConfig) {
                 await loadAuthConfig();
             }
@@ -352,7 +363,9 @@
                 full_name: name,
                 fullName: name,
                 name,
-                display_name: name
+                display_name: name,
+                ipe_address: cleanIpeAddress(ipeAddress),
+                ipeAddress: cleanIpeAddress(ipeAddress)
             };
 
             const response = await fetch(`${authConfig.supabaseUrl}/auth/v1/signup`, {
@@ -568,6 +581,36 @@
             return registeredName || fallback || storedName;
         }
 
+        function setAuthMode(mode) {
+            authMode = mode === 'create-account' ? 'create-account' : 'sign-in';
+
+            const isCreateAccount = authMode === 'create-account';
+            const authTitle = document.getElementById('authTitle');
+            const authSubtitle = document.getElementById('authSubtitle');
+            const loginNameGroup = document.getElementById('loginNameGroup');
+            const loginIpeAddressGroup = document.getElementById('loginIpeAddressGroup');
+            const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+            const signupBtn = document.getElementById('signupBtn');
+            const loginName = document.getElementById('loginName');
+            const loginIpeAddress = document.getElementById('loginIpeAddress');
+
+            authTitle.textContent = isCreateAccount ? 'Create Account' : 'Authentication';
+            authSubtitle.textContent = isCreateAccount
+                ? 'Create your Supabase account and save the signer name plus Ipe address in your profile.'
+                : 'Sign in with your Supabase email and password to sign.';
+            loginNameGroup.classList.toggle('hidden', !isCreateAccount);
+            loginIpeAddressGroup.classList.toggle('hidden', !isCreateAccount);
+            loginSubmitBtn.textContent = isCreateAccount ? 'Create Account' : 'Secure Sign In';
+            signupBtn.textContent = isCreateAccount ? 'Back to Sign In' : 'Create Account';
+            loginName.toggleAttribute('required', isCreateAccount);
+            loginIpeAddress.toggleAttribute('required', isCreateAccount);
+
+            if (!isCreateAccount) {
+                loginName.value = '';
+                loginIpeAddress.value = '';
+            }
+        }
+
         async function ensureRegisteredSignerName() {
             if (hasValidSignerName(currentUser)) {
                 return true;
@@ -580,7 +623,7 @@
                 return true;
             }
 
-            alert('No saved full name was found for this account. Sign out, fill Full Name once on sign in, and IpeSign will save it to your profile.');
+            alert('No saved full name was found for this account. Sign in can continue, but signing requires a name saved during account creation or in the account profile.');
             return false;
         }
 
@@ -702,20 +745,59 @@
         // Auth Logic
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const typedName = document.getElementById('loginName').value.trim();
-            const email = document.getElementById('loginEmail').value;
+            const email = document.getElementById('loginEmail').value.trim();
             const password = document.getElementById('loginPassword').value;
-            const submitButton = e.submitter;
-            const originalLabel = submitButton.textContent;
+            const submitButton = document.getElementById('loginSubmitBtn');
+            const modeToggleButton = document.getElementById('signupBtn');
 
             submitButton.disabled = true;
-            submitButton.textContent = 'Authenticating...';
+            modeToggleButton.disabled = true;
+            submitButton.textContent = authMode === 'create-account' ? 'Creating account...' : 'Authenticating...';
 
             try {
+                if (authMode === 'create-account') {
+                    const name = document.getElementById('loginName').value.trim();
+                    const ipeAddress = cleanIpeAddress(document.getElementById('loginIpeAddress').value);
+
+                    if (!name || !email || !password || !ipeAddress) {
+                        throw new Error('Fill in your name, Ipe address, email, and password to create the account.');
+                    }
+
+                    const cleanName = cleanSignerName(name, email);
+                    if (!cleanName) {
+                        throw new Error('Fill in a real full name, not an email address.');
+                    }
+
+                    if (!ipeAddress) {
+                        throw new Error('Fill in the Ipe address for this account.');
+                    }
+
+                    const data = await signUpWithSupabase(cleanName, email, password, ipeAddress);
+                    saveRegisteredName(email, cleanName, data?.user?.id);
+                    const accessToken = data.access_token || data.session?.access_token || '';
+
+                    if (accessToken) {
+                        const profileName = await updateSupabaseProfileName(accessToken, email, cleanName, data?.user?.id);
+                        currentUser = await loadCurrentSession(accessToken, profileName || cleanName || supabaseDisplayName(data));
+                        localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
+                        if (pendingAction) {
+                            showApp(pendingAction);
+                            pendingAction = null;
+                        } else {
+                            goToLanding();
+                        }
+                        alert('Account created and session started successfully.');
+                        return;
+                    }
+
+                    alert('Account created. Check your email if Supabase requires confirmation before login.');
+                    setAuthMode('sign-in');
+                    return;
+                }
+
                 const authData = await loginWithSupabase(email, password);
                 const accessToken = authData.access_token || authData.session?.access_token || '';
-                const profileName = await updateSupabaseProfileName(accessToken, email, typedName, authData?.user?.id);
-                const fallbackName = profileName || supabaseDisplayName(authData) || registeredNameForEmail(email);
+                const fallbackName = supabaseDisplayName(authData) || registeredNameForEmail(email);
                 currentUser = await loadCurrentSession(accessToken, fallbackName);
                 localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
 
@@ -729,57 +811,13 @@
                 alert('Error: ' + error.message);
             } finally {
                 submitButton.disabled = false;
-                submitButton.textContent = originalLabel;
+                modeToggleButton.disabled = false;
+                setAuthMode(authMode);
             }
         });
 
         document.getElementById('signupBtn').addEventListener('click', async () => {
-            const name = document.getElementById('loginName').value.trim();
-            const email = document.getElementById('loginEmail').value.trim();
-            const password = document.getElementById('loginPassword').value;
-            const signupButton = document.getElementById('signupBtn');
-            const originalLabel = signupButton.textContent;
-
-            if (!name || !email || !password) {
-                alert('Fill in your name, email, and password to create the account.');
-                return;
-            }
-
-            const cleanName = cleanSignerName(name, email);
-            if (!cleanName) {
-                alert('Fill in a real full name, not an email address.');
-                return;
-            }
-
-            signupButton.disabled = true;
-            signupButton.textContent = 'Creating account...';
-
-            try {
-                const data = await signUpWithSupabase(cleanName, email, password);
-                saveRegisteredName(email, cleanName, data?.user?.id);
-                const accessToken = data.access_token || data.session?.access_token || '';
-
-                if (accessToken) {
-                    const profileName = await updateSupabaseProfileName(accessToken, email, cleanName, data?.user?.id);
-                    currentUser = await loadCurrentSession(accessToken, profileName || cleanName || supabaseDisplayName(data));
-                    localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
-                    if (pendingAction) {
-                        showApp(pendingAction);
-                        pendingAction = null;
-                    } else {
-                        goToLanding();
-                    }
-                    alert('Account created and session started successfully.');
-                    return;
-                }
-
-                alert('Account created. Check your email if Supabase requires confirmation before login.');
-            } catch (error) {
-                alert('Error: ' + error.message);
-            } finally {
-                signupButton.disabled = false;
-                signupButton.textContent = originalLabel;
-            }
+            setAuthMode(authMode === 'create-account' ? 'sign-in' : 'create-account');
         });
 
         function logout() {
