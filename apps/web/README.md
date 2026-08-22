@@ -1,27 +1,12 @@
-# apps/web
+# IpeSign web interface
 
-This folder is prepared for the frontend.
+The frontend is a static same-origin interface served by the Go API. It contains no database credential, Supabase key or access token. Authentication calls `/v1/auth/*`; the backend owns the Supabase exchange and stores sessions in `HttpOnly` cookies.
 
-## Intended Structure
+Build the pinned local assets:
 
-- `public/`: static assets
-- `src/app/`: app shell, routes, providers
-- `src/components/`: shared components
-- `src/features/sign/`: signing UI flow
-- `src/features/verify/`: verification UI flow
-- `src/features/admin/`: admin and audit views
-- `src/lib/api/`: fetch client and endpoint wrappers
-- `src/lib/env/`: frontend env parsing
-- `src/styles/`: global styles and tokens
+```bash
+npm ci --ignore-scripts
+npm run build:web
+```
 
-## Suggested First Screens
-
-- sign document
-- verify document
-- record details
-- CA details
-- admin ledger audit
-
-## Environment
-
-See `.env.example`.
+Generated files under `public/assets/` are ignored by Git and produced in CI and the Docker build. Source styles are in `src/styles.css`; the application markup and JavaScript are in `public/index.html`.

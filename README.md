@@ -1,250 +1,113 @@
 # IpeSign
 
-IpeSign already has a working Go core for:
+IpeSign signs PDFs with an ephemeral Ed25519 certificate created for one document and records certificate issuance and use in an append-only, tamper-evident ledger. It is not a distributed blockchain: one IpeSign deployment is the authority and the ledger operator.
 
-- ephemeral per-document certificates
-- hash signing for real PDFs
-- local append-only ledger
-- persistence to file or PostgreSQL
-- encrypted private key persistence
-- root CA plus issuing CA chain
-- CLI signing and verification
+The repository contains a Go API and CLI, a static web interface served by the same API process, PostgreSQL/Supabase persistence, Supabase Auth integration, tests, migrations, CI and a non-root container image.
 
-The repository is also prepared for web development with dedicated folders for:
+## Security model
 
-- `apps/api`
-- `apps/web`
-- `packages/contracts`
+- A `root CA -> issuing CA -> one-document certificate` chain binds each signature to the original PDF hash and policy.
+- The ephemeral document private key is zeroed after signing and is never persisted.
+- The certificate and signature are each registered once. PostgreSQL partial unique indexes enforce non-reuse even under concurrent requests.
+- Authority and ledger private keys are sealed with `IPESIGN_MASTER_KEY` before persistence.
+- When Supabase Auth is enabled, the backend derives the certificate name and email only from verified JWT claims. Multipart fields and user-editable profile metadata cannot override that identity.
+- Browser access and refresh tokens remain in `HttpOnly`, `SameSite=Strict` cookies; the frontend does not store them in JavaScript storage.
+- The PostgreSQL ledger lives in the private `ipesign` schema with forced RLS and an append-only runtime role.
+- The API applies a strict nonce-based CSP, security headers, request limits, rate limits, same-origin CORS by default and explicit HTTP timeouts.
 
-## Current Status
+Read [Security architecture](docs/SECURITY_ARCHITECTURE.md) before a production deployment. This project does not implement PAdES or claim the legal status of a qualified electronic signature.
 
-What works today:
+## Requirements
 
-- sign a real PDF by path
-- verify the same PDF by path
-- persist the CA and ledger between executions
-- expose the same flow over HTTP
-- expose a reusable application service in `internal/core`
+- Go 1.26+
+- Node.js 24+ (only to build bundled frontend assets)
+- PostgreSQL 17 for persistence/integration tests (optional)
 
-What does not exist yet:
-
-- embedded PDF signature
-- PAdES
-- admin UI
-- final frontend
-
-## Fastest Demo
-
-Sign a PDF:
+## Local development
 
 ```bash
-export IPESIGN_MASTER_KEY='change-this'
-go run ./cmd/ipesign sign /path/file.pdf
-```
-
-Verify the same PDF:
-
-```bash
-export IPESIGN_MASTER_KEY='change-this'
-go run ./cmd/ipesign verify /path/file.pdf
-```
-
-This creates a sidecar next to the PDF:
-
-```text
-/path/file.pdf.ipesign.json
-```
-
-If verification is successful, the command returns a JSON result containing:
-
-- `valid: true`
-- `signatureValid: true`
-- `ledgerRecordValid: true`
-- `singleUseConfirmed: true`
-
-## HTTP Demo
-
-Run the API:
-
-```bash
-export IPESIGN_MASTER_KEY='change-this'
-export SUPABASE_URL='https://your-project.supabase.co'
-export SUPABASE_JWT_SECRET='your-legacy-jwt-secret-if-applicable'
-export CORS_ALLOW_ORIGIN='http://localhost:3000'
+npm ci --ignore-scripts
+npm run build:web
+export IPESIGN_MASTER_KEY='use-a-long-random-development-secret'
 go run ./apps/api/cmd/server
 ```
 
-Health:
+Open `http://localhost:8080`. Without Supabase variables, local signing is intentionally available without login. Do not expose that mode to the internet.
+
+Run the checks:
 
 ```bash
-curl -s http://localhost:8080/v1/health | jq
+go test ./...
+go vet ./...
+go build ./...
+npm audit --audit-level=high
 ```
 
-Sign:
+## Production configuration
 
-```bash
-curl -s \
-  -F pdf=@/path/file.pdf \
-  -F policy_id=participation-v1 \
-  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-  http://localhost:8080/v1/documents/sign | jq
-```
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `IPESIGN_MASTER_KEY` | Yes | Long random secret used to seal persisted private keys. |
+| `DATABASE_URL` | Recommended | PostgreSQL connection URI. If omitted, state is stored under `IPESIGN_DATA_DIR`. |
+| `SUPABASE_URL` | For auth | Project URL, for example `https://project-ref.supabase.co`. |
+| `SUPABASE_PUBLISHABLE_KEY` | For password auth | Supabase publishable key; legacy `SUPABASE_ANON_KEY` is also accepted. |
+| `SUPABASE_JWT_SECRET` | Legacy only | Enables verification of legacy HS256 access tokens. Prefer Supabase JWKS. |
+| `CORS_ALLOW_ORIGIN` | No | Comma-separated extra trusted origins. Empty or `*` keeps the secure same-origin-only default. |
+| `IPESIGN_DATA_DIR` | No | File persistence directory; defaults to `./data`. |
+| `IPESIGN_ADDR` / `PORT` | No | Listen address or platform-provided port. |
 
-Verify:
-
-```bash
-CERT=$(jq -r '.certificatePem' sign.json)
-SIG=$(jq -r '.signatureBase64' sign.json)
-
-curl -s \
-  -F pdf=@/path/file.pdf \
-  --form-string certificate_pem="$CERT" \
-  -F signature_base64="$SIG" \
-  http://localhost:8080/v1/documents/verify | jq
-```
-
-Record lookup:
-
-```bash
-curl -s http://localhost:8080/v1/records/pdfsig-1 | jq
-```
-
-## Persistence
-
-Default behavior:
-
-- file-based persistence in `./data`
-- private keys sealed with `IPESIGN_MASTER_KEY`
-
-Optional behavior:
-
-- PostgreSQL if `DATABASE_URL` is set
-- bearer auth from Supabase if `SUPABASE_URL` is set
-
-Examples:
-
-```bash
-export DATABASE_URL='postgresql://postgres.[PROJECT-REF]:PASSWORD@aws-0-[REGION].pooler.supabase.com:5432/postgres'
-export IPESIGN_MASTER_KEY='change-this'
-export SUPABASE_URL='https://[PROJECT-REF].supabase.co'
-go run ./cmd/ipesign sign /path/file.pdf
-```
-
-For hosted Supabase projects, the official docs recommend:
-
-- email/password auth via Supabase Auth
-- using the Postgres connection string from the `Connect` button in the dashboard
-- using the pooler connection string for IPv4/persistent environments when direct IPv6 is not suitable
-
-Sources:
-
-- Supabase password auth: https://supabase.com/docs/guides/auth/passwords
-- Supabase Postgres connection strings: https://supabase.com/docs/reference/postgres/connection-strings
-
-## API Auth
-
-If `SUPABASE_URL` is configured, the API verifies Supabase bearer tokens and protects `POST /v1/sign`.
-
-Routes:
-
-- `GET /v1/auth/me`
-- `POST /v1/sign`
-- `POST /v1/documents/sign`
-
-If `SUPABASE_JWT_SECRET` is provided, the API can also validate legacy symmetric Supabase JWTs. Otherwise it uses the project's JWKS endpoint at `SUPABASE_URL/auth/v1/.well-known/jwks.json`.
-
-## Deploy
-
-This repository now includes:
-
-- `Dockerfile` for the API runtime
-- `.dockerignore`
-- `render.yaml` for Render deployment
-
-Production envs:
-
-- `IPESIGN_MASTER_KEY`
-- `DATABASE_URL`
-- `SUPABASE_URL`
-- optional `SUPABASE_JWT_SECRET`
-- `SUPABASE_PUBLISHABLE_KEY`
-- `CORS_ALLOW_ORIGIN`
-- optional `PORT` supplied by the platform
-
-PostgreSQL uses an in-process connection pool. Ledger blocks are stored as
-append-only rows, while the authority keys remain encrypted in a separate
-singleton row. Certificate and record indexes enforce single use at the
-database layer without requiring the `psql` executable in the runtime image.
-
-Local container run:
-
-```bash
-docker build -t ipesign-api .
-docker run --rm -p 8080:8080 \
-  -e IPESIGN_MASTER_KEY='change-this' \
-  -e DATABASE_URL='postgresql://...' \
-  -e SUPABASE_URL='https://your-project.supabase.co' \
-  -e CORS_ALLOW_ORIGIN='https://your-frontend.example.com' \
-  ipesign-api
-```
-
-## Context Docs
-
-Team context files:
-
-- [CONTEXT.md](/home/arthursalmoria/IpeSign/CONTEXT.md)
-- [apps/api/CONTEXT.md](/home/arthursalmoria/IpeSign/apps/api/CONTEXT.md)
-- [apps/web/CONTEXT.md](/home/arthursalmoria/IpeSign/apps/web/CONTEXT.md)
-
-## Repository Layout
+Copy the complete PostgreSQL URI from Supabase **Connect > Connection string**. Do not concatenate two URIs. A pooler URI normally looks like:
 
 ```text
-apps/
-  api/
-    cmd/server/           web API entrypoint
-    http/
-      handlers/           HTTP handlers by feature
-      middleware/         auth, logging, limits, CORS
-      router/             route registration
-    openapi/              API contract for frontend/backend alignment
-  web/
-    public/               static assets
-    src/
-      app/                app shell, routes, providers
-      components/         shared UI components
-      features/           sign, verify, admin feature folders
-      lib/                API client, env, utils
-      styles/             global styles and tokens
-packages/
-  contracts/
-    http/                 request/response shapes
-    schemas/              JSON schema, zod, or validation contracts
-
-cmd/ipesign/              current CLI
-internal/core/            stable application service for CLI and API
-internal/                 current Go core implementation
-data/                     persisted CA and ledger state
+postgresql://postgres.PROJECT_REF:URL_ENCODED_PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require
 ```
 
-## Current Recommendation
+If the password contains `@`, `:`, `/`, `?`, `#` or `%`, URL-encode it. `DATABASE_URL`, tokens, keys and `.env` files are ignored and must never be committed.
 
-- keep the cryptographic and ledger core in `internal/`
-- consume the application service from `internal/core`
-- build the future web API in `apps/api/`
-- build the future frontend in `apps/web/`
-- place shared request/response contracts in `packages/contracts/`
+At startup, the API applies the embedded, versioned migrations from `internal/persist/migrations/`. The database login therefore needs migration privileges. Runtime connections immediately `SET ROLE ipesign_runtime` and receive no `UPDATE` or `DELETE` grant on ledger blocks; an append-only trigger also rejects row mutation.
 
-## Security Notes
+## HTTP API
 
-- new installations create a `root CA -> issuing CA -> document certificate` chain
-- document verification now rejects expired certificates
-- persisted private keys are encrypted at rest using `IPESIGN_MASTER_KEY`
-- existing plaintext state may still load, but new writes use sealed key blobs
+Main routes:
 
-## Repository Notes
+- `GET /v1/health`
+- `GET /v1/ca`
+- `POST /v1/auth/signup`
+- `POST /v1/auth/login`
+- `POST /v1/auth/logout`
+- `GET /v1/auth/me`
+- `POST /v1/documents/sign`
+- `POST /v1/documents/verify`
+- `GET /v1/records/{recordId}`
+- `GET /v1/chain/verify`
 
-- `cmd/ipesign` is the current operator-friendly CLI
-- `apps/api/cmd/server` is the web API entrypoint
-- `internal/core` is the stable application layer for signing, verifying, record lookup and ledger queries
-- `internal/api` is the thin HTTP adapter currently reused by `apps/api/cmd/server`
-- `internal/authority`, `internal/ledger`, and `internal/persist` remain the main backend core packages
+PDF requests use `multipart/form-data` with exactly one `pdf` file and a maximum PDF size of 20 MiB. Signing returns the signed PDF; verification reads the embedded IpeSign record. See [OpenAPI](apps/api/openapi/openapi.yaml).
+
+## CLI
+
+```bash
+export IPESIGN_MASTER_KEY='use-a-long-random-development-secret'
+go run ./cmd/ipesign sign --common-name 'Local User' document.pdf
+go run ./cmd/ipesign verify document_signed.pdf
+go run ./cmd/ipesign walk
+```
+
+CLI-provided identity is suitable only for trusted local operation. Hosted identity comes from verified Supabase claims.
+
+## Container and Render
+
+```bash
+docker build -t ipesign .
+docker run --rm -p 8080:8080 \
+  -e IPESIGN_MASTER_KEY='replace-me' \
+  -e DATABASE_URL='postgresql://...' \
+  -e SUPABASE_URL='https://project-ref.supabase.co' \
+  -e SUPABASE_PUBLISHABLE_KEY='sb_publishable_...' \
+  ipesign
+```
+
+The final image runs as UID/GID `10001`, not root. `render.yaml` declares the web service and its secret variables. Render still requires the actual values to be entered in the service environment.
+
+## Contributing and license
+
+See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). IpeSign is licensed under the [Apache License 2.0](LICENSE).

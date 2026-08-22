@@ -2,7 +2,7 @@ services:
   - type: web
     name: ipesign-api
     runtime: docker
-    plan: starter
+    plan: free
     healthCheckPath: /v1/health
     envVars:
       - key: IPESIGN_MASTER_KEY
@@ -12,6 +12,8 @@ services:
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
       - key: CORS_ALLOW_ORIGIN
         sync: false

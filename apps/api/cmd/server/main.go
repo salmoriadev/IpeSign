@@ -22,23 +22,24 @@ func main() {
 	supabaseURL := os.Getenv("SUPABASE_URL")
 	supabaseJWTSecret := os.Getenv("SUPABASE_JWT_SECRET")
 	supabasePublishableKey := envOrDefault("SUPABASE_PUBLISHABLE_KEY", os.Getenv("SUPABASE_ANON_KEY"))
-	allowedOrigin := envOrDefault("CORS_ALLOW_ORIGIN", "*")
+	allowedOrigin := os.Getenv("CORS_ALLOW_ORIGIN")
 
 	server, err := api.NewServer(api.Config{
-		DataDir:           dataDir,
-		DatabaseURL:       databaseURL,
-		MasterKey:         os.Getenv("IPESIGN_MASTER_KEY"),
-		SupabaseURL:       supabaseURL,
-		SupabaseJWTSecret: supabaseJWTSecret,
+		DataDir:                dataDir,
+		DatabaseURL:            databaseURL,
+		MasterKey:              os.Getenv("IPESIGN_MASTER_KEY"),
+		SupabaseURL:            supabaseURL,
+		SupabaseJWTSecret:      supabaseJWTSecret,
 		SupabasePublishableKey: supabasePublishableKey,
-		AllowedOrigin:     allowedOrigin,
+		AllowedOrigin:          allowedOrigin,
 	})
 	if err != nil {
 		log.Fatalf("failed to create API server: %v", err)
 	}
 
 	log.Printf("ipesign api listening on %s", addr)
-	if err := http.ListenAndServe(addr, server.Handler()); err != nil {
+	httpServer := api.NewHTTPServer(addr, server.Handler())
+	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server stopped: %v", err)
 	}
 }

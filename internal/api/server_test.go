@@ -2,7 +2,9 @@ package api
 
 import (
 	"bytes"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -307,6 +309,7 @@ func TestServerRequiresSupabaseAuthWhenConfigured(t *testing.T) {
 	now := time.Now().UTC()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"iss":           "https://example.supabase.co/auth/v1",
+		"aud":           "authenticated",
 		"sub":           "user-123",
 		"email":         "user@example.com",
 		"role":          "authenticated",
@@ -320,7 +323,9 @@ func TestServerRequiresSupabaseAuthWhenConfigured(t *testing.T) {
 	}
 
 	authBody, authContentType, err := multipartRequest(pdf, map[string]string{
-		"policy_id": "participation-v1",
+		"policy_id":     "participation-v1",
+		"common_name":   "Spoofed Name",
+		"email_address": "spoofed@example.com",
 	})
 	if err != nil {
 		t.Fatalf("multipartRequest(sign-auth) error = %v", err)
@@ -333,6 +338,32 @@ func TestServerRequiresSupabaseAuthWhenConfigured(t *testing.T) {
 	server.Handler().ServeHTTP(authRec, authReq)
 	if authRec.Code != http.StatusOK {
 		t.Fatalf("auth status = %d body = %s", authRec.Code, authRec.Body.String())
+	}
+	embedded, err := extractEmbeddedJSON(authRec.Body.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var signedIdentity struct {
+		SignerName     string `json:"signerName"`
+		SignerEmail    string `json:"signerEmail"`
+		CertificatePEM string `json:"certificatePem"`
+	}
+	if err := json.Unmarshal(embedded, &signedIdentity); err != nil {
+		t.Fatal(err)
+	}
+	if signedIdentity.SignerName != "user@example.com" || signedIdentity.SignerEmail != "user@example.com" {
+		t.Fatalf("signed identity = %#v", signedIdentity)
+	}
+	certificateBlock, _ := pem.Decode([]byte(signedIdentity.CertificatePEM))
+	if certificateBlock == nil {
+		t.Fatal("signed response contains no certificate")
+	}
+	certificate, err := x509.ParseCertificate(certificateBlock.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if certificate.Subject.CommonName != "user@example.com" || len(certificate.EmailAddresses) != 1 || certificate.EmailAddresses[0] != "user@example.com" {
+		t.Fatalf("certificate identity = CN %q, emails %#v", certificate.Subject.CommonName, certificate.EmailAddresses)
 	}
 }
 

@@ -2,9 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"ipesign/internal/auth"
@@ -12,13 +14,15 @@ import (
 )
 
 type Config struct {
-	DataDir            string
-	DatabaseURL        string
-	MasterKey          string
-	SupabaseURL        string
-	SupabaseJWTSecret  string
+	DataDir                string
+	DatabaseURL            string
+	MasterKey              string
+	SupabaseURL            string
+	SupabaseJWTSecret      string
 	SupabasePublishableKey string
-	AllowedOrigin      string
+	AllowedOrigin          string
+	StaticDir              string
+	AuthHTTPClient         *http.Client
 }
 
 type SignResult = core.SignResult
@@ -26,14 +30,20 @@ type VerifyResult = core.VerifyResult
 type RecordResult = core.RecordResult
 
 type Server struct {
-	service *core.Service
-	auth    *auth.Service
-	allowedOrigin string
-	supabaseURL string
-	supabasePublishableKey string
+	service        *core.Service
+	auth           *auth.Service
+	allowedOrigins map[string]struct{}
+	staticDir      string
+	signLimiter    *tokenBucket
+	verifyLimiter  *tokenBucket
+	authLimiter    *tokenBucket
 }
 
 func NewServer(cfg Config) (*Server, error) {
+	allowedOrigins, err := parseAllowedOrigins(cfg.AllowedOrigin)
+	if err != nil {
+		return nil, err
+	}
 	service, err := core.NewService(core.Config{
 		DataDir:     cfg.DataDir,
 		DatabaseURL: cfg.DatabaseURL,
@@ -42,16 +52,24 @@ func NewServer(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	authService, err := auth.NewService(auth.Config{
+		SupabaseURL:            cfg.SupabaseURL,
+		SupabaseJWTSecret:      cfg.SupabaseJWTSecret,
+		SupabasePublishableKey: cfg.SupabasePublishableKey,
+		HTTPClient:             cfg.AuthHTTPClient,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	return &Server{
-		service: service,
-		auth: auth.NewService(auth.Config{
-			SupabaseURL:       cfg.SupabaseURL,
-			SupabaseJWTSecret: cfg.SupabaseJWTSecret,
-		}),
-		allowedOrigin: firstNonEmpty(cfg.AllowedOrigin, "*"),
-		supabaseURL: strings.TrimSpace(cfg.SupabaseURL),
-		supabasePublishableKey: strings.TrimSpace(cfg.SupabasePublishableKey),
+		service:        service,
+		auth:           authService,
+		allowedOrigins: allowedOrigins,
+		staticDir:      firstNonEmpty(cfg.StaticDir, "./apps/web/public"),
+		signLimiter:    newTokenBucket(30, 5),
+		verifyLimiter:  newTokenBucket(120, 10),
+		authLimiter:    newTokenBucket(30, 5),
 	}, nil
 }
 
@@ -60,34 +78,23 @@ func (s *Server) Handler() http.Handler {
 
 	// API Routes
 	mux.HandleFunc("/v1/auth/config", s.handleAuthConfig)
-	mux.HandleFunc("/v1/auth/me", s.handleAuthMe)
+	mux.Handle("/v1/auth/login", s.rateLimit(s.authLimiter, http.HandlerFunc(s.handleAuthLogin)))
+	mux.Handle("/v1/auth/signup", s.rateLimit(s.authLimiter, http.HandlerFunc(s.handleAuthSignup)))
+	mux.Handle("/v1/auth/logout", s.rateLimit(s.authLimiter, http.HandlerFunc(s.handleAuthLogout)))
+	mux.Handle("/v1/auth/me", s.rateLimit(s.authLimiter, http.HandlerFunc(s.handleAuthMe)))
 	mux.HandleFunc("/v1/health", s.handleHealth)
 	mux.HandleFunc("/v1/ca", s.handleCA)
-	mux.HandleFunc("/v1/sign", s.handleSign)
-	mux.HandleFunc("/v1/documents/sign", s.handleSign)
-	mux.HandleFunc("/v1/verify", s.handleVerify)
-	mux.HandleFunc("/v1/documents/verify", s.handleVerify)
+	mux.Handle("/v1/sign", s.rateLimit(s.signLimiter, http.HandlerFunc(s.handleSign)))
+	mux.Handle("/v1/documents/sign", s.rateLimit(s.signLimiter, http.HandlerFunc(s.handleSign)))
+	mux.Handle("/v1/verify", s.rateLimit(s.verifyLimiter, http.HandlerFunc(s.handleVerify)))
+	mux.Handle("/v1/documents/verify", s.rateLimit(s.verifyLimiter, http.HandlerFunc(s.handleVerify)))
 	mux.HandleFunc("/v1/chain/walk", s.handleWalk)
 	mux.HandleFunc("/v1/chain/verify", s.handleChainVerify)
 	mux.HandleFunc("/v1/records/", s.handleRecord)
 
-	// Serve Static Files for Web UI
-	fileServer := http.FileServer(http.Dir("./apps/web/public"))
-	mux.Handle("/", fileServer)
+	mux.Handle("/", s.staticHandler())
 
-	// CORS Middleware
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", s.allowedOrigin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		mux.ServeHTTP(w, r)
-	})
+	return s.securityHeaders(s.cors(mux))
 }
 
 func (s *Server) SignPDF(pdfBytes []byte, filename string, policyID string, identity core.SignerIdentity) ([]byte, *SignResult, error) {
@@ -122,25 +129,6 @@ func (s *Server) handleCA(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.service.CAInfo())
 }
 
-func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-	if !s.auth.Enabled() {
-		writeError(w, http.StatusNotImplemented, "supabase auth is not configured")
-		return
-	}
-
-	session, err := s.auth.SessionFromBearer(r.Header.Get("Authorization"))
-	if err != nil {
-		writeError(w, http.StatusUnauthorized, err.Error())
-		return
-	}
-
-	writeJSON(w, http.StatusOK, session)
-}
-
 func (s *Server) handleAuthConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -148,9 +136,7 @@ func (s *Server) handleAuthConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"authEnabled":            s.auth.Enabled(),
-		"supabaseUrl":            s.supabaseURL,
-		"supabasePublishableKey": s.supabasePublishableKey,
+		"authEnabled": s.auth.PasswordAuthEnabled(),
 	})
 }
 
@@ -160,16 +146,29 @@ func (s *Server) handleSign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pdfBytes, filename, policyID, err := readPDFUpload(r)
+	var identity core.SignerIdentity
+	var err error
+	if s.auth.Enabled() {
+		// Reject unauthenticated requests before reading a potentially large body.
+		identity, err = s.signerIdentityFromRequest(w, r)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "invalid or expired session")
+			return
+		}
+	}
+
+	pdfBytes, filename, policyID, err := readPDFUpload(w, r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeUploadError(w, err)
 		return
 	}
 
-	identity, err := s.signerIdentityFromRequest(r)
-	if err != nil {
-		writeError(w, http.StatusUnauthorized, err.Error())
-		return
+	if !s.auth.Enabled() {
+		identity, err = s.signerIdentityFromRequest(w, r)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "invalid signer identity")
+			return
+		}
 	}
 
 	signedPdfBytes, _, err := s.service.SignPDF(pdfBytes, filename, policyID, identity)
@@ -189,9 +188,9 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pdfBytes, _, _, err := readPDFUpload(r)
+	pdfBytes, _, _, err := readPDFUpload(w, r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeUploadError(w, err)
 		return
 	}
 
@@ -256,9 +255,23 @@ func (s *Server) handleRecord(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, record)
 }
 
-func readPDFUpload(r *http.Request) ([]byte, string, string, error) {
-	if err := r.ParseMultipartForm(core.MaxPDFSize); err != nil {
+const maxMultipartOverhead = 1 << 20
+
+var errUploadTooLarge = errors.New("request body exceeds the upload limit")
+
+func readPDFUpload(w http.ResponseWriter, r *http.Request) ([]byte, string, string, error) {
+	r.Body = http.MaxBytesReader(w, r.Body, core.MaxPDFSize+maxMultipartOverhead)
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return nil, "", "", errUploadTooLarge
+		}
 		return nil, "", "", fmt.Errorf("parse multipart form: %w", err)
+	}
+	defer r.MultipartForm.RemoveAll()
+
+	if len(r.MultipartForm.File) != 1 || len(r.MultipartForm.File["pdf"]) != 1 {
+		return nil, "", "", fmt.Errorf("exactly one pdf file is required")
 	}
 
 	file, header, err := r.FormFile("pdf")
@@ -280,12 +293,33 @@ func readPDFUpload(r *http.Request) ([]byte, string, string, error) {
 	if policyID == "" {
 		policyID = core.DefaultPolicyID
 	}
+	if len(policyID) > 128 {
+		return nil, "", "", fmt.Errorf("policy id is too long")
+	}
 
-	return pdfBytes, header.Filename, policyID, nil
+	filename := filepath.Base(strings.TrimSpace(header.Filename))
+	if filename == "." || filename == "" {
+		filename = "document.pdf"
+	}
+	return pdfBytes, filename, policyID, nil
 }
 
-func (s *Server) signerIdentityFromRequest(r *http.Request) (core.SignerIdentity, error) {
-	identity := core.SignerIdentity{
+func (s *Server) signerIdentityFromRequest(w http.ResponseWriter, r *http.Request) (core.SignerIdentity, error) {
+	if s.auth.Enabled() {
+		session, err := s.sessionFromRequest(w, r)
+		if err != nil {
+			return core.SignerIdentity{}, err
+		}
+
+		// Certificate identity is derived only from verified claims. Profile fields
+		// and multipart values are presentation data and must not override it.
+		return core.SignerIdentity{
+			CommonName:   firstNonEmpty(session.Email, session.UserID),
+			EmailAddress: session.Email,
+		}, nil
+	}
+
+	return core.SignerIdentity{
 		CommonName:         strings.TrimSpace(r.FormValue("common_name")),
 		EmailAddress:       strings.TrimSpace(r.FormValue("email_address")),
 		Organization:       strings.TrimSpace(r.FormValue("organization")),
@@ -293,20 +327,15 @@ func (s *Server) signerIdentityFromRequest(r *http.Request) (core.SignerIdentity
 		Country:            strings.TrimSpace(r.FormValue("country")),
 		Province:           strings.TrimSpace(r.FormValue("province")),
 		Locality:           strings.TrimSpace(r.FormValue("locality")),
-	}
+	}, nil
+}
 
-	if !s.auth.Enabled() {
-		return identity, nil
+func writeUploadError(w http.ResponseWriter, err error) {
+	if errors.Is(err, errUploadTooLarge) {
+		writeError(w, http.StatusRequestEntityTooLarge, err.Error())
+		return
 	}
-
-	session, err := s.auth.SessionFromBearer(r.Header.Get("Authorization"))
-	if err != nil {
-		return core.SignerIdentity{}, err
-	}
-
-	identity.CommonName = firstNonEmpty(identity.CommonName, session.DisplayName, session.Email, session.UserID)
-	identity.EmailAddress = firstNonEmpty(identity.EmailAddress, session.Email)
-	return identity, nil
+	writeError(w, http.StatusBadRequest, err.Error())
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

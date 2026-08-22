@@ -8,8 +8,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -17,24 +19,29 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const defaultJWKSCacheTTL = 10 * time.Minute
+const (
+	defaultJWKSCacheTTL = 10 * time.Minute
+	maxTokenBytes       = 16 << 10
+)
 
 type Config struct {
-	SupabaseURL       string
-	SupabaseJWTSecret string
-	HTTPClient        *http.Client
-	Clock             func() time.Time
-	JWKSCacheTTL      time.Duration
+	SupabaseURL            string
+	SupabaseJWTSecret      string
+	SupabasePublishableKey string
+	HTTPClient             *http.Client
+	Clock                  func() time.Time
+	JWKSCacheTTL           time.Duration
 }
 
 type Service struct {
-	supabaseURL string
-	issuer      string
-	jwksURL     string
-	jwtSecret   []byte
-	httpClient  *http.Client
-	clock       func() time.Time
-	cacheTTL    time.Duration
+	supabaseURL    string
+	publishableKey string
+	issuer         string
+	jwksURL        string
+	jwtSecret      []byte
+	httpClient     *http.Client
+	clock          func() time.Time
+	cacheTTL       time.Duration
 
 	mu          sync.RWMutex
 	cachedKeys  map[string]any
@@ -45,8 +52,10 @@ type Session struct {
 	UserID      string            `json:"userId"`
 	Email       string            `json:"email,omitempty"`
 	DisplayName string            `json:"displayName,omitempty"`
+	ProfileName string            `json:"profileName,omitempty"`
+	IpeAddress  string            `json:"ipeAddress,omitempty"`
 	Role        string            `json:"role,omitempty"`
-	Claims      map[string]any    `json:"claims,omitempty"`
+	Claims      map[string]any    `json:"-"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
 }
 
@@ -66,7 +75,7 @@ type jsonWebKey struct {
 	E         string `json:"e"`
 }
 
-func NewService(cfg Config) *Service {
+func NewService(cfg Config) (*Service, error) {
 	client := cfg.HTTPClient
 	if client == nil {
 		client = &http.Client{Timeout: 5 * time.Second}
@@ -86,24 +95,33 @@ func NewService(cfg Config) *Service {
 	issuer := ""
 	jwksURL := ""
 	if supabaseURL != "" {
+		parsed, err := url.Parse(supabaseURL)
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
+			return nil, fmt.Errorf("invalid SUPABASE_URL: expected an HTTPS project origin")
+		}
 		issuer = supabaseURL + "/auth/v1"
 		jwksURL = issuer + "/.well-known/jwks.json"
 	}
 
 	return &Service{
-		supabaseURL: supabaseURL,
-		issuer:      issuer,
-		jwksURL:     jwksURL,
-		jwtSecret:   []byte(strings.TrimSpace(cfg.SupabaseJWTSecret)),
-		httpClient:  client,
-		clock:       clock,
-		cacheTTL:    cacheTTL,
-		cachedKeys:  map[string]any{},
-	}
+		supabaseURL:    supabaseURL,
+		publishableKey: strings.TrimSpace(cfg.SupabasePublishableKey),
+		issuer:         issuer,
+		jwksURL:        jwksURL,
+		jwtSecret:      []byte(strings.TrimSpace(cfg.SupabaseJWTSecret)),
+		httpClient:     client,
+		clock:          clock,
+		cacheTTL:       cacheTTL,
+		cachedKeys:     map[string]any{},
+	}, nil
 }
 
 func (s *Service) Enabled() bool {
 	return s.issuer != "" || len(s.jwtSecret) > 0
+}
+
+func (s *Service) PasswordAuthEnabled() bool {
+	return s.supabaseURL != "" && s.publishableKey != ""
 }
 
 func (s *Service) SessionFromBearer(header string) (*Session, error) {
@@ -111,12 +129,23 @@ func (s *Service) SessionFromBearer(header string) (*Session, error) {
 	if tokenString == "" {
 		return nil, fmt.Errorf("missing bearer token")
 	}
+	return s.SessionFromToken(tokenString)
+}
+
+func (s *Service) SessionFromToken(tokenString string) (*Session, error) {
+	if strings.TrimSpace(tokenString) == "" {
+		return nil, fmt.Errorf("missing auth token")
+	}
+	if len(tokenString) > maxTokenBytes {
+		return nil, fmt.Errorf("invalid auth token")
+	}
 	if !s.Enabled() {
 		return nil, fmt.Errorf("supabase auth is not configured")
 	}
 
 	parserOptions := []jwt.ParserOption{
 		jwt.WithValidMethods([]string{"RS256", "ES256", "HS256"}),
+		jwt.WithAudience("authenticated"),
 		jwt.WithExpirationRequired(),
 		jwt.WithIssuedAt(),
 		jwt.WithLeeway(30 * time.Second),
@@ -140,28 +169,42 @@ func (s *Service) SessionFromBearer(header string) (*Session, error) {
 	if userID == "" {
 		return nil, fmt.Errorf("invalid auth token")
 	}
+	if !strings.EqualFold(asString(claims["role"]), "authenticated") {
+		return nil, fmt.Errorf("invalid auth token")
+	}
 
 	email := firstNonEmpty(asString(claims["email"]))
 	displayName := firstNonEmpty(
-		asString(claims["name"]),
-		asString(claims["full_name"]),
-		asString(claims["display_name"]),
+		asNestedString(claims["app_metadata"], "full_name"),
+		asNestedString(claims["app_metadata"], "name"),
+		asNestedString(claims["app_metadata"], "display_name"),
+		asNestedString(claims["raw_app_meta_data"], "full_name"),
+		asNestedString(claims["raw_app_meta_data"], "name"),
+		asNestedString(claims["raw_app_meta_data"], "display_name"),
+		email,
+		userID,
+	)
+	profileName := firstNonEmpty(
 		asNestedString(claims["user_metadata"], "full_name"),
-		asNestedString(claims["user_metadata"], "fullName"),
 		asNestedString(claims["user_metadata"], "name"),
 		asNestedString(claims["user_metadata"], "display_name"),
 		asNestedString(claims["raw_user_meta_data"], "full_name"),
-		asNestedString(claims["raw_user_meta_data"], "fullName"),
 		asNestedString(claims["raw_user_meta_data"], "name"),
 		asNestedString(claims["raw_user_meta_data"], "display_name"),
-		email,
-		userID,
+	)
+	ipeAddress := firstNonEmpty(
+		asNestedString(claims["user_metadata"], "ipe_address"),
+		asNestedString(claims["user_metadata"], "ipeAddress"),
+		asNestedString(claims["raw_user_meta_data"], "ipe_address"),
+		asNestedString(claims["raw_user_meta_data"], "ipeAddress"),
 	)
 
 	return &Session{
 		UserID:      userID,
 		Email:       email,
 		DisplayName: displayName,
+		ProfileName: profileName,
+		IpeAddress:  ipeAddress,
 		Role:        firstNonEmpty(asString(claims["role"]), "authenticated"),
 		Claims:      claims,
 		Metadata: map[string]string{
@@ -230,7 +273,7 @@ func (s *Service) refreshJWKS(ctx context.Context) error {
 	}
 
 	var doc jwksDocument
-	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&doc); err != nil {
 		return err
 	}
 

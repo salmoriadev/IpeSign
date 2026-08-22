@@ -1,41 +1,18 @@
-# apps/api
+# IpeSign API
 
-This folder is prepared for the web-facing backend.
+`cmd/server` starts the production HTTP API and serves the built static frontend from `apps/web/public`. Domain logic remains in `internal/core`; transport, auth, request limits, CORS and security headers are in `internal/api`.
 
-## Intended Structure
+## Development
 
-- `cmd/server/`: process entrypoint
-- `http/handlers/`: handlers by feature
-- `http/middleware/`: auth, request IDs, logging, CORS, limits
-- `http/router/`: route registration
-- `openapi/`: API contract consumed by frontend
+```bash
+npm ci --ignore-scripts
+npm run build:web
+export IPESIGN_MASTER_KEY='local-development-only'
+go run ./apps/api/cmd/server
+```
 
-## Suggested Split
+The process reads configuration from environment variables; it does not automatically load `.env` files. See the root [README](../../README.md) for production variables, persistence and the security model.
 
-- keep signing, certificate, and ledger logic in root `internal/`
-- add transport/web concerns here
-- call into the core instead of rewriting the domain
+When Supabase Auth is enabled, use the same-origin `/v1/auth/*` routes. The backend stores tokens in secure `HttpOnly` cookies and ignores client-provided signer identity during hosted signing.
 
-## Suggested Near-Term Endpoints
-
-- `POST /v1/documents/sign`
-- `POST /v1/documents/verify`
-- `GET /v1/records/:recordId`
-- `GET /v1/ca`
-- `GET /v1/health`
-- `GET /v1/chain/verify`
-
-## Environment
-
-See `.env.example`.
-
-Deploy-oriented notes:
-
-- `DATABASE_URL`: use the Supabase Postgres connection string
-- `SUPABASE_URL`: enables bearer-token auth for `POST /v1/sign`
-- `SUPABASE_JWT_SECRET`: optional fallback for projects still using legacy symmetric JWT signing
-
-When `SUPABASE_URL` is set, the API exposes:
-
-- `GET /v1/auth/me`
-- authenticated signing via `Authorization: Bearer <supabase_access_token>`
+The API contract is in [openapi/openapi.yaml](openapi/openapi.yaml).

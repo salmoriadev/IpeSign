@@ -319,17 +319,17 @@ func (a *Authority) IssueDocumentCertificate(documentHash, policyID string, iden
 	}
 
 	now := a.clock()
-	
+
 	subject := pkix.Name{
 		Organization: []string{a.issuerName},
 	}
-	
+
 	if identity.CommonName != "" {
 		subject.CommonName = identity.CommonName
 	} else {
 		subject.CommonName = "Ipe Single-Use Document Certificate"
 	}
-	
+
 	if identity.Organization != "" {
 		subject.Organization = append(subject.Organization, identity.Organization)
 	}

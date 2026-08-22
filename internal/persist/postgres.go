@@ -16,53 +16,6 @@ import (
 	"ipesign/internal/ledger/localchain"
 )
 
-const createStateTableSQL = `
-CREATE TABLE IF NOT EXISTS ipesign_state (
-    id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-    root_ca_cert_pem_b64 TEXT,
-    root_ca_key_blob_b64 TEXT,
-    ca_cert_pem_b64 TEXT NOT NULL,
-    ca_key_pem_b64 TEXT,
-    ca_key_blob_b64 TEXT NOT NULL,
-    ledger_key_pem_b64 TEXT,
-    ledger_key_blob_b64 TEXT NOT NULL,
-    chain_snapshot_b64 TEXT,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-ALTER TABLE ipesign_state ADD COLUMN IF NOT EXISTS root_ca_cert_pem_b64 TEXT;
-ALTER TABLE ipesign_state ADD COLUMN IF NOT EXISTS root_ca_key_blob_b64 TEXT;
-ALTER TABLE ipesign_state ADD COLUMN IF NOT EXISTS ca_key_pem_b64 TEXT;
-ALTER TABLE ipesign_state ADD COLUMN IF NOT EXISTS ca_key_blob_b64 TEXT;
-ALTER TABLE ipesign_state ADD COLUMN IF NOT EXISTS ledger_key_pem_b64 TEXT;
-ALTER TABLE ipesign_state ADD COLUMN IF NOT EXISTS ledger_key_blob_b64 TEXT;
-ALTER TABLE ipesign_state ADD COLUMN IF NOT EXISTS chain_snapshot_b64 TEXT;
-ALTER TABLE ipesign_state ALTER COLUMN chain_snapshot_b64 DROP NOT NULL;
-
-CREATE TABLE IF NOT EXISTS ipesign_ledger_blocks (
-    block_index BIGINT PRIMARY KEY CHECK (block_index >= 0),
-    prev_hash TEXT NOT NULL,
-    block_hash TEXT NOT NULL UNIQUE,
-    occurred_at TIMESTAMPTZ NOT NULL,
-    event_type TEXT NOT NULL,
-	payload BYTEA NOT NULL,
-	cert_hash TEXT,
-	record_id TEXT,
-    payload_hash TEXT NOT NULL,
-    ledger_signature TEXT NOT NULL
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS ipesign_ledger_certificate_hash_uidx
-	ON ipesign_ledger_blocks (cert_hash)
-    WHERE event_type = 'CERTIFICATE_ISSUED';
-CREATE UNIQUE INDEX IF NOT EXISTS ipesign_ledger_single_use_uidx
-	ON ipesign_ledger_blocks (cert_hash)
-    WHERE event_type = 'SIGNATURE_REGISTERED';
-CREATE UNIQUE INDEX IF NOT EXISTS ipesign_ledger_record_id_uidx
-	ON ipesign_ledger_blocks (record_id)
-    WHERE event_type = 'SIGNATURE_REGISTERED';
-CREATE INDEX IF NOT EXISTS ipesign_ledger_event_type_idx
-    ON ipesign_ledger_blocks (event_type, block_index);`
-
 const ledgerAdvisoryLockID int64 = 0x4950455349474e
 
 var ErrLedgerConflict = errors.New("persisted ledger changed concurrently")
@@ -80,25 +33,72 @@ func NewPostgresStore(databaseURL string, masterKey string) (*PostgresStore, err
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	pool, err := pgxpool.New(ctx, databaseURL)
+	adminConfig, err := postgresPoolConfig(databaseURL, false)
 	if err != nil {
-		return nil, fmt.Errorf("configure postgres pool: %w", err)
+		return nil, err
+	}
+	adminPool, err := pgxpool.NewWithConfig(ctx, adminConfig)
+	if err != nil {
+		return nil, fmt.Errorf("configure postgres migration pool")
+	}
+	if err := adminPool.Ping(ctx); err != nil {
+		adminPool.Close()
+		return nil, fmt.Errorf("connect to postgres: %w", err)
+	}
+	if err := applyMigrations(ctx, adminPool); err != nil {
+		adminPool.Close()
+		return nil, err
+	}
+	adminPool.Close()
+
+	runtimeConfig, err := postgresPoolConfig(databaseURL, true)
+	if err != nil {
+		return nil, err
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, runtimeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("configure postgres runtime pool")
 	}
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("connect to postgres: %w", err)
+		return nil, fmt.Errorf("connect to postgres runtime role: %w", err)
 	}
 
 	store := &PostgresStore{
 		pool:             pool,
 		privateBlobCodec: NewPassphrasePrivateBlobCodec(masterKey),
 	}
-	if err := store.migrate(ctx); err != nil {
-		pool.Close()
-		return nil, err
-	}
-
 	return store, nil
+}
+
+func postgresPoolConfig(databaseURL string, runtimeRole bool) (*pgxpool.Config, error) {
+	config, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		// pgx parse errors can contain the full credential-bearing URL.
+		return nil, fmt.Errorf("configure postgres pool: invalid DATABASE_URL")
+	}
+	config.MaxConns = 4
+	config.MinConns = 0
+	config.MaxConnIdleTime = 5 * time.Minute
+	config.MaxConnLifetime = 30 * time.Minute
+	config.HealthCheckPeriod = time.Minute
+	config.ConnConfig.RuntimeParams["application_name"] = "ipesign"
+	if runtimeRole {
+		config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+			for _, statement := range []string{
+				"SET ROLE ipesign_runtime",
+				"SET search_path TO ipesign, pg_catalog",
+				"SET statement_timeout TO '30s'",
+				"SET idle_in_transaction_session_timeout TO '15s'",
+			} {
+				if _, err := conn.Exec(ctx, statement); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}
+	return config, nil
 }
 
 func (s *PostgresStore) Backend() string {
@@ -110,7 +110,7 @@ func (s *PostgresStore) Exists() (bool, error) {
 	defer cancel()
 
 	var exists bool
-	err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM ipesign_state WHERE id = 1)`).Scan(&exists)
+	err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM ipesign.ipesign_state WHERE id = 1)`).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("check postgres state: %w", err)
 	}
@@ -131,7 +131,7 @@ SELECT
   COALESCE(ca_key_blob_b64, ca_key_pem_b64, ''),
   COALESCE(ledger_key_blob_b64, ledger_key_pem_b64, ''),
   COALESCE(chain_snapshot_b64, '')
-FROM ipesign_state
+FROM ipesign.ipesign_state
 WHERE id = 1`).Scan(
 		&rootCACertB64,
 		&rootCAKeyB64,
@@ -181,7 +181,7 @@ WHERE id = 1`).Scan(
 		if err := s.AppendBlocks(blocks); err != nil {
 			return nil, fmt.Errorf("migrate legacy postgres ledger: %w", err)
 		}
-		if _, err := s.pool.Exec(ctx, `UPDATE ipesign_state SET chain_snapshot_b64 = NULL WHERE id = 1`); err != nil {
+		if _, err := s.pool.Exec(ctx, `UPDATE ipesign.ipesign_state SET chain_snapshot_b64 = NULL WHERE id = 1`); err != nil {
 			return nil, fmt.Errorf("finish legacy postgres migration: %w", err)
 		}
 	}
@@ -238,7 +238,7 @@ func (s *PostgresStore) Save(state *State) error {
 	}
 
 	_, err = tx.Exec(ctx, `
-INSERT INTO ipesign_state (
+INSERT INTO ipesign.ipesign_state (
   id, root_ca_cert_pem_b64, root_ca_key_blob_b64, ca_cert_pem_b64,
   ca_key_pem_b64, ca_key_blob_b64, ledger_key_pem_b64,
   ledger_key_blob_b64, chain_snapshot_b64, updated_at
@@ -264,7 +264,7 @@ ON CONFLICT (id) DO UPDATE SET
 	}
 
 	var blockCount int64
-	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM ipesign_ledger_blocks`).Scan(&blockCount); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM ipesign.ipesign_ledger_blocks`).Scan(&blockCount); err != nil {
 		return fmt.Errorf("count postgres ledger: %w", err)
 	}
 	if blockCount != 0 {
@@ -303,7 +303,7 @@ func (s *PostgresStore) AppendBlocks(blocks []localchain.Block) error {
 	var lastHash string
 	err = tx.QueryRow(ctx, `
 SELECT block_index, block_hash
-FROM ipesign_ledger_blocks
+FROM ipesign.ipesign_ledger_blocks
 ORDER BY block_index DESC
 LIMIT 1`).Scan(&lastIndex, &lastHash)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -336,7 +336,7 @@ func (s *PostgresStore) loadBlocks(ctx context.Context) ([]localchain.Block, err
 	rows, err := s.pool.Query(ctx, `
 SELECT block_index, prev_hash, block_hash, occurred_at, event_type,
        payload, payload_hash, ledger_signature
-FROM ipesign_ledger_blocks
+FROM ipesign.ipesign_ledger_blocks
 ORDER BY block_index`)
 	if err != nil {
 		return nil, fmt.Errorf("query postgres ledger: %w", err)
@@ -383,7 +383,7 @@ func insertBlocks(ctx context.Context, tx pgx.Tx, blocks []localchain.Block) err
 		}
 
 		_, err := tx.Exec(ctx, `
-INSERT INTO ipesign_ledger_blocks (
+INSERT INTO ipesign.ipesign_ledger_blocks (
   block_index, prev_hash, block_hash, occurred_at, event_type,
 	payload, payload_hash, ledger_signature, cert_hash, record_id
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULLIF($9, ''), NULLIF($10, ''))`,
@@ -407,13 +407,6 @@ INSERT INTO ipesign_ledger_blocks (
 		}
 	}
 
-	return nil
-}
-
-func (s *PostgresStore) migrate(ctx context.Context) error {
-	if _, err := s.pool.Exec(ctx, createStateTableSQL); err != nil {
-		return fmt.Errorf("migrate postgres state: %w", err)
-	}
 	return nil
 }
 

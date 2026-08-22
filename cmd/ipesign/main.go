@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,14 +73,15 @@ func runServer(args []string) error {
 	}
 
 	log.Printf("ipesign server listening on %s", *addr)
-	return http.ListenAndServe(*addr, server.Handler())
+	httpServer := api.NewHTTPServer(*addr, server.Handler())
+	return httpServer.ListenAndServe()
 }
 
 func runSign(args []string) error {
 	fs := flag.NewFlagSet("sign", flag.ContinueOnError)
 	outPath := fs.String("out", "", "output signature sidecar path")
 	policyID := fs.String("policy", core.DefaultPolicyID, "policy id")
-	dataDir := fs.String("data-dir", "./data", "data directory for CA and blockchain")
+	dataDir := fs.String("data-dir", "./data", "data directory for CA and ledger")
 	databaseURL := fs.String("database-url", envOrDefault("DATABASE_URL", ""), "PostgreSQL connection string")
 	commonName := fs.String("common-name", "", "Subject Common Name (e.g. user name)")
 	emailAddress := fs.String("email", "", "Subject Email Address")
@@ -252,7 +252,7 @@ func runVerify(args []string) error {
 
 func runVerifyFile(args []string) error {
 	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
-	dataDir := fs.String("data-dir", "./data", "data directory for CA and blockchain")
+	dataDir := fs.String("data-dir", "./data", "data directory for CA and ledger")
 	databaseURL := fs.String("database-url", envOrDefault("DATABASE_URL", ""), "PostgreSQL connection string")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -427,7 +427,7 @@ func runExtract(args []string) error {
 	fmt.Printf("Extracted Signature: %s\n", *outSig)
 	fmt.Println("\nTo inspect the certificate with OpenSSL:")
 	fmt.Printf("  openssl x509 -in %s -text -noout\n", *outCert)
-	
+
 	return nil
 }
 

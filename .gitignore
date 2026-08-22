@@ -10,6 +10,8 @@ data/
 
 # Go
 bin/
+node_modules/
+apps/web/public/assets/
 *.exe
 *.exe~
 *.dll

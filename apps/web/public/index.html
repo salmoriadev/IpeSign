@@ -4,45 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IpeSign - Digital Signature</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
-    <!-- Adds PDF.js to render PDFs in the browser -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    <link rel="stylesheet" href="/assets/app.css">
+    <script src="/assets/pdf-lib.min.js"></script>
+    <script type="module" nonce="{{CSP_NONCE}}">
+        import * as pdfjs from '/assets/pdf.min.mjs';
+        pdfjs.GlobalWorkerOptions.workerSrc = '/assets/pdf.worker.min.mjs';
+        globalThis.pdfjsLib = pdfjs;
     </script>
-    <style>
-        html {
-            min-height: 100%;
-            background: linear-gradient(135deg, #bbf7d0 0%, #ecfdf5 30%, #ffffff 56%, #d1fae5 100%) fixed;
-        }
-        body {
-            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", sans-serif;
-            font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-            text-rendering: geometricPrecision;
-        }
-        .hero-type {
-            font-family: "Manrope", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        }
-        .drag-active {
-            border-color: #10b981 !important;
-            background-color: #ecfdf5 !important;
-        }
-        [x-cloak] { display: none !important; }
-        #pdfPreviewContainer {
-            touch-action: none;
-        }
-    </style>
 </head>
 <body class="min-h-screen text-slate-800 flex flex-col antialiased bg-transparent">
     <!-- Navbar -->
     <nav class="sticky top-0 z-30 bg-transparent backdrop-blur-sm">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-[72px]">
-                <div class="flex flex-col items-start justify-center gap-1 cursor-pointer" onclick="goToLanding()">
+                <button id="brandHomeBtn" type="button" class="flex flex-col items-start justify-center gap-1 cursor-pointer">
                     <div class="flex items-center gap-2">
                         <span class="text-2xl font-bold text-emerald-700">IpeSign</span>
                         <span class="w-8 h-8 rounded-lg bg-white/45 text-[#047857] flex items-center justify-center ring-1 ring-emerald-200/70 shadow-sm backdrop-blur" aria-hidden="true">
@@ -52,13 +27,13 @@
                         </span>
                     </div>
                     <span class="h-1 w-full rounded-full bg-gradient-to-r from-emerald-700 via-emerald-500 to-emerald-700 shadow-[0_2px_8px_rgba(4,120,87,0.22)]" aria-hidden="true"></span>
-                </div>
+                </button>
                 <div class="flex items-center space-x-4">
                     <div id="navUserArea" class="hidden items-center space-x-4">
                         <span class="text-sm text-slate-600">Hello, <span id="navUserName" class="font-bold text-slate-900"></span></span>
-                        <button onclick="logout()" class="text-sm text-red-600 hover:text-red-800 font-medium">Log out</button>
+                        <button id="navLogoutBtn" type="button" class="text-sm text-red-600 hover:text-red-800 font-medium">Log out</button>
                     </div>
-                    <button id="navLoginBtn" onclick="showLogin()" class="text-sm font-semibold text-emerald-800 hover:text-emerald-900 bg-white/45 hover:bg-white/70 border border-emerald-200/70 px-4 py-2.5 rounded-xl shadow-sm hover:shadow backdrop-blur transition-all">
+                    <button id="navLoginBtn" type="button" class="text-sm font-semibold text-emerald-800 hover:text-emerald-900 bg-white/45 hover:bg-white/70 border border-emerald-200/70 px-4 py-2.5 rounded-xl shadow-sm hover:shadow backdrop-blur transition-all">
                         Sign In
                     </button>
                 </div>
@@ -72,10 +47,10 @@
         <!-- View: Landing -->
         <div id="view-landing" class="max-w-5xl w-full text-center py-8 sm:py-14">
             <h1 class="hero-type max-w-4xl mx-auto text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-950 mb-5 leading-[1.04]">Simplified Digital Notary</h1>
-            <p class="hero-type text-lg sm:text-xl font-medium text-slate-600 mb-10 sm:mb-12 max-w-2xl mx-auto leading-relaxed">Sign and audit contracts on your own machine using the <span class="font-semibold text-slate-800">Single-Use Keys</span> model backed by a 100% transparent, traceable, and immutable blockchain.</p>
+            <p class="hero-type text-lg sm:text-xl font-medium text-slate-600 mb-10 sm:mb-12 max-w-2xl mx-auto leading-relaxed">Sign and audit contracts using the <span class="font-semibold text-slate-800">Single-Use Keys</span> model backed by a transparent, traceable, tamper-evident ledger.</p>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-2xl mx-auto">
-                <button onclick="requireAuth('sign')" class="flex flex-col items-center p-8 sm:p-10 bg-white/85 border border-emerald-100/80 rounded-2xl shadow-[0_18px_50px_rgba(15,23,42,0.06)] hover:shadow-[0_22px_60px_rgba(15,23,42,0.10)] hover:-translate-y-1 hover:border-emerald-300 transition-all duration-300 group backdrop-blur">
+                <button id="landingSignBtn" type="button" class="flex flex-col items-center p-8 sm:p-10 bg-white/85 border border-emerald-100/80 rounded-2xl shadow-[0_18px_50px_rgba(15,23,42,0.06)] hover:shadow-[0_22px_60px_rgba(15,23,42,0.10)] hover:-translate-y-1 hover:border-emerald-300 transition-all duration-300 group backdrop-blur">
                     <div class="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mb-6 ring-1 ring-emerald-100 shadow-inner group-hover:scale-[1.04] group-hover:bg-emerald-500 group-hover:text-white group-hover:ring-emerald-500 transition-all">
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                     </div>
@@ -83,12 +58,12 @@
                     <p class="text-sm text-slate-500 text-center leading-6 max-w-[14rem]">Generate an ephemeral certificate and package the signature inside the file.</p>
                 </button>
 
-                <button onclick="requireAuth('verify')" class="flex flex-col items-center p-8 sm:p-10 bg-white/85 border border-blue-100/80 rounded-2xl shadow-[0_18px_50px_rgba(15,23,42,0.06)] hover:shadow-[0_22px_60px_rgba(15,23,42,0.10)] hover:-translate-y-1 hover:border-blue-300 transition-all duration-300 group backdrop-blur">
+                <button id="landingVerifyBtn" type="button" class="flex flex-col items-center p-8 sm:p-10 bg-white/85 border border-blue-100/80 rounded-2xl shadow-[0_18px_50px_rgba(15,23,42,0.06)] hover:shadow-[0_22px_60px_rgba(15,23,42,0.10)] hover:-translate-y-1 hover:border-blue-300 transition-all duration-300 group backdrop-blur">
                     <div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-6 ring-1 ring-blue-100 shadow-inner group-hover:scale-[1.04] group-hover:bg-blue-500 group-hover:text-white group-hover:ring-blue-500 transition-all">
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     </div>
                     <h3 class="text-xl font-bold text-slate-950 mb-3">Verify PDF</h3>
-                    <p class="text-sm text-slate-500 text-center leading-6 max-w-[14rem]">Inspect Ed25519 cryptography and prevent reuse on the blockchain.</p>
+                    <p class="text-sm text-slate-500 text-center leading-6 max-w-[14rem]">Inspect Ed25519 cryptography and confirm non-reuse in the append-only ledger.</p>
                 </button>
             </div>
         </div>
@@ -131,7 +106,7 @@
                     <button type="button" id="signupBtn" class="w-full mt-3 flex justify-center py-3 px-4 border border-emerald-200/80 rounded-xl text-sm font-semibold text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100 transition-colors">
                         Create Account
                     </button>
-                    <button type="button" onclick="goToLanding()" class="w-full mt-3 flex justify-center py-3 px-4 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
+                    <button type="button" id="authCancelBtn" class="w-full mt-3 flex justify-center py-3 px-4 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
                         Cancel and Go Back
                     </button>
                 </div>
@@ -144,8 +119,8 @@
             <div class="bg-white/85 rounded-2xl shadow-[0_24px_70px_rgba(15,23,42,0.08)] border border-slate-200/70 overflow-hidden mb-8 backdrop-blur">
                 <div class="border-b border-slate-200/70 bg-slate-50/60">
                     <nav class="flex" aria-label="Tabs">
-                        <button onclick="switchTab('sign')" id="tab-sign" class="w-1/2 py-4 px-1 text-center border-b-2 font-bold text-sm sm:text-base border-emerald-500 text-emerald-700 bg-white/60 transition-colors">Digital Signature</button>
-                        <button onclick="switchTab('verify')" id="tab-verify" class="w-1/2 py-4 px-1 text-center border-b-2 font-bold text-sm sm:text-base border-transparent text-slate-500 hover:text-slate-700 hover:bg-white/60 hover:border-slate-200 transition-colors">Document Validator</button>
+                        <button type="button" id="tab-sign" class="w-1/2 py-4 px-1 text-center border-b-2 font-bold text-sm sm:text-base border-emerald-500 text-emerald-700 bg-white/60 transition-colors">Digital Signature</button>
+                        <button type="button" id="tab-verify" class="w-1/2 py-4 px-1 text-center border-b-2 font-bold text-sm sm:text-base border-transparent text-slate-500 hover:text-slate-700 hover:bg-white/60 hover:border-slate-200 transition-colors">Document Validator</button>
                     </nav>
                 </div>
                 
@@ -178,23 +153,24 @@
                             <div id="pdfPreviewSection" class="hidden space-y-4">
                                 <div class="flex justify-between items-center mb-2">
                                     <p class="text-sm font-semibold text-slate-700">Drag the stamp to position the visual signature:</p>
-                                    <button type="button" onclick="resetFile()" class="text-sm text-red-500 hover:text-red-700 font-medium">Replace PDF</button>
+                                    <button type="button" id="resetFileBtn" class="text-sm text-red-500 hover:text-red-700 font-medium">Replace PDF</button>
                                 </div>
                                 
                                 <div id="pdfPagination" class="hidden items-center justify-center space-x-4 mb-2">
-                                    <button type="button" id="prevPageBtn" onclick="changePage(-1)" class="px-3 py-1.5 bg-white/90 border border-slate-200 text-slate-700 text-sm rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">&lt; Previous</button>
+                                    <button type="button" id="prevPageBtn" class="px-3 py-1.5 bg-white/90 border border-slate-200 text-slate-700 text-sm rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">&lt; Previous</button>
                                     <span class="text-sm font-medium text-slate-600">Page <span id="currentPageNum">1</span> of <span id="totalPagesNum">1</span></span>
-                                    <button type="button" id="nextPageBtn" onclick="changePage(1)" class="px-3 py-1.5 bg-white/90 border border-slate-200 text-slate-700 text-sm rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Next &gt;</button>
+                                    <button type="button" id="nextPageBtn" class="px-3 py-1.5 bg-white/90 border border-slate-200 text-slate-700 text-sm rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Next &gt;</button>
                                 </div>
 
                                 <div class="w-full overflow-x-auto bg-slate-100/80 p-4 rounded-xl border border-slate-200/70">
-                                    <div id="pdfPreviewContainer" class="relative mx-auto bg-white shadow-[0_18px_50px_rgba(15,23,42,0.16)]" style="width: max-content;">
+                                    <div id="pdfPreviewContainer" class="relative mx-auto w-max bg-white shadow-[0_18px_50px_rgba(15,23,42,0.16)]">
                                         <canvas id="pdfCanvas" class="block"></canvas>
-                                        <div id="draggableStamp" class="absolute cursor-move border border-slate-300 bg-white/95 text-slate-800 text-[8px] p-2 shadow-sm select-none z-10 leading-tight rounded-md flex items-center gap-2" style="width: 260px; height: 62px; top: 10px; left: 10px; box-sizing: border-box;">
+                                        <div id="draggableStamp" class="absolute cursor-move border border-slate-300 bg-white/95 text-slate-800 text-[8px] p-2 shadow-sm select-none z-10 leading-tight rounded-md flex items-center gap-2 w-[260px] h-[74px] top-[10px] left-[10px] box-border">
                                             <img src="/ipesign-city-logo.png" alt="" class="w-20 shrink-0 opacity-90">
                                             <div class="min-w-0 flex-1 space-y-0.5">
                                                 <div class="font-semibold truncate">Name: <span id="stampName"></span></div>
                                                 <div class="truncate">Email: <span id="stampEmail"></span></div>
+                                                <div class="truncate">Ipe: <span id="stampIpeAddress"></span></div>
                                                 <div class="truncate">Date: <span id="stampDate"></span></div>
                                             </div>
                                         </div>
@@ -218,7 +194,7 @@
                     <div id="content-verify" class="hidden max-w-xl mx-auto">
                         <div class="text-center mb-10">
                             <h2 class="text-2xl font-bold text-slate-950">Public Audit</h2>
-                            <p class="text-sm text-slate-500 mt-2 leading-relaxed">Inspect whether a document contains an authentic IpeSign injection and has not been subject to double spending (reuse) on the blockchain.</p>
+                            <p class="text-sm text-slate-500 mt-2 leading-relaxed">Inspect whether a document contains an authentic IpeSign signature and whether its single-use certificate was registered only once.</p>
                         </div>
 
                         <form id="verifyForm" class="space-y-6">
@@ -256,7 +232,7 @@
                                 <div class="flex justify-between items-center"><span class="font-semibold text-slate-700">Ledger Status (Single-Use):</span> <span id="resLedger" class="px-3 py-1 rounded-md text-xs font-bold uppercase"></span></div>
                                 <div class="flex justify-between items-center border-t border-dashed border-slate-200 pt-4"><span class="font-semibold text-slate-700">Signer:</span> <span id="resIdentity" class="font-bold text-slate-900 truncate max-w-[200px] bg-white px-3 py-1 border rounded-md shadow-sm"></span></div>
                                 <div class="flex justify-between items-center mt-2"><span class="font-semibold text-slate-700">Signer Email:</span> <span id="resSignerEmail" class="font-mono text-xs text-slate-500 truncate max-w-[200px]"></span></div>
-                                <div class="flex justify-between items-center mt-2"><span class="font-semibold text-slate-700">Record ID (Blockchain):</span> <span id="resRecordId" class="font-mono text-xs text-slate-500 truncate max-w-[200px]"></span></div>
+                                <div class="flex justify-between items-center mt-2"><span class="font-semibold text-slate-700">Ledger record ID:</span> <span id="resRecordId" class="font-mono text-xs text-slate-500 truncate max-w-[200px]"></span></div>
                             </div>
                         </div>
                     </div>
@@ -265,9 +241,16 @@
         </div>
     </main>
 
-    <script>
+    <template id="validStatusIconTemplate">
+        <div class="w-14 h-14 rounded-xl bg-emerald-100 flex items-center justify-center shadow-inner"><svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div>
+    </template>
+    <template id="invalidStatusIconTemplate">
+        <div class="w-14 h-14 rounded-xl bg-red-100 flex items-center justify-center shadow-inner"><svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></div>
+    </template>
+
+    <script nonce="{{CSP_NONCE}}">
         // State Management
-        let currentUser = JSON.parse(localStorage.getItem('ipesign_user') || 'null');
+        let currentUser = null;
         let authConfig = null;
         let pendingAction = null; // 'sign' or 'verify'
         let currentPdfFile = null;
@@ -278,6 +261,7 @@
         let authMode = 'sign-in';
         const signatureLogoSrc = '/ipesign-city-logo.png';
         const registeredNamesStorageKey = 'ipesign_registered_names';
+        const registeredIpeAddressesStorageKey = 'ipesign_registered_ipe_addresses';
 
         // Views Control
         function hideAllViews() {
@@ -330,7 +314,7 @@
         }
 
         async function loadAuthConfig() {
-            const response = await fetch('/v1/auth/config');
+            const response = await fetch('/v1/auth/config', { credentials: 'same-origin' });
             if (!response.ok) {
                 if (response.status === 404) {
                     throw new Error('The API does not expose /v1/auth/config yet. Restart the backend with the latest version.');
@@ -346,6 +330,37 @@
             return (value || '').trim();
         }
 
+        function loadRegisteredIpeAddresses() {
+            try {
+                const addresses = JSON.parse(localStorage.getItem(registeredIpeAddressesStorageKey) || '{}');
+                return addresses && typeof addresses === 'object' && !Array.isArray(addresses) ? addresses : {};
+            } catch {
+                return {};
+            }
+        }
+
+        function registeredIpeAddressForEmail(email) {
+            const key = registeredNameKey(email);
+            if (!key) {
+                return '';
+            }
+
+            return cleanIpeAddress(loadRegisteredIpeAddresses()[key]);
+        }
+
+        function saveRegisteredIpeAddress(email, ipeAddress) {
+            const key = registeredNameKey(email);
+            const cleanAddress = cleanIpeAddress(ipeAddress);
+            if (!key || !cleanAddress) {
+                return '';
+            }
+
+            const addresses = loadRegisteredIpeAddresses();
+            addresses[key] = cleanAddress;
+            localStorage.setItem(registeredIpeAddressesStorageKey, JSON.stringify(addresses));
+            return cleanAddress;
+        }
+
         async function signUpWithSupabase(name, email, password, ipeAddress) {
             if (!authConfig) {
                 await loadAuthConfig();
@@ -355,38 +370,23 @@
                 throw new Error('Supabase authentication is not configured on the server.');
             }
 
-            if (!authConfig?.supabaseUrl || !authConfig?.supabasePublishableKey) {
-                throw new Error('SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is missing in the backend.');
-            }
-
-            const profileData = {
-                full_name: name,
-                fullName: name,
-                name,
-                display_name: name,
-                ipe_address: cleanIpeAddress(ipeAddress),
-                ipeAddress: cleanIpeAddress(ipeAddress)
-            };
-
-            const response = await fetch(`${authConfig.supabaseUrl}/auth/v1/signup`, {
+            const response = await fetch('/v1/auth/signup', {
                 method: 'POST',
+                credentials: 'same-origin',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': authConfig.supabasePublishableKey
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
+                    name,
                     email,
                     password,
-                    data: profileData,
-                    options: {
-                        data: profileData
-                    }
+                    ipeAddress: cleanIpeAddress(ipeAddress)
                 })
             });
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.error_description || data.msg || data.error || 'Failed to create account');
+                throw new Error(data.error || 'Failed to create account');
             }
 
             return data;
@@ -401,22 +401,18 @@
                 throw new Error('Supabase authentication is not configured on the server.');
             }
 
-            if (!authConfig?.supabaseUrl || !authConfig?.supabasePublishableKey) {
-                throw new Error('SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is missing in the backend.');
-            }
-
-            const response = await fetch(`${authConfig.supabaseUrl}/auth/v1/token?grant_type=password`, {
+            const response = await fetch('/v1/auth/login', {
                 method: 'POST',
+                credentials: 'same-origin',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': authConfig.supabasePublishableKey
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ email, password })
             });
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.error_description || data.msg || data.error || 'Login failed');
+                throw new Error(data.error || 'Login failed');
             }
 
             return data;
@@ -513,6 +509,7 @@
 
         function firstRegisteredName(source, email = '', userId = '') {
             const candidates = [
+                source?.profileName,
                 source?.displayName,
                 source?.full_name,
                 source?.fullName,
@@ -562,13 +559,78 @@
         function saveSignerName(name) {
             const cleanName = saveRegisteredName(currentUser?.email, name, currentUser?.userId) || cleanSignerName(name, currentUser?.email, currentUser?.userId) || name;
             currentUser.name = cleanName;
-            localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
             updateNav();
 
             const stampName = document.getElementById('stampName');
             if (stampName) {
                 stampName.textContent = cleanName;
             }
+        }
+
+        function findNestedIpeAddress(source, seen = new Set()) {
+            if (!source || typeof source !== 'object' || seen.has(source)) {
+                return '';
+            }
+
+            seen.add(source);
+
+            if (Array.isArray(source)) {
+                for (const item of source) {
+                    const address = findNestedIpeAddress(item, seen);
+                    if (address) {
+                        return address;
+                    }
+                }
+                return '';
+            }
+
+            for (const key of ['ipe_address', 'ipeAddress', 'ipe_addr', 'address']) {
+                if (Object.prototype.hasOwnProperty.call(source, key)) {
+                    const address = cleanIpeAddress(source[key]);
+                    if (address) {
+                        return address;
+                    }
+                }
+            }
+
+            for (const value of Object.values(source)) {
+                const address = findNestedIpeAddress(value, seen);
+                if (address) {
+                    return address;
+                }
+            }
+
+            return '';
+        }
+
+        function firstRegisteredIpeAddress(source) {
+            const candidates = [
+                source?.ipe_address,
+                source?.ipeAddress,
+                source?.user_metadata?.ipe_address,
+                source?.user_metadata?.ipeAddress,
+                source?.raw_user_meta_data?.ipe_address,
+                source?.raw_user_meta_data?.ipeAddress,
+                source?.claims?.user_metadata?.ipe_address,
+                source?.claims?.user_metadata?.ipeAddress,
+                source?.claims?.raw_user_meta_data?.ipe_address,
+                source?.claims?.raw_user_meta_data?.ipeAddress,
+                source?.user?.user_metadata?.ipe_address,
+                source?.user?.user_metadata?.ipeAddress,
+                source?.user?.raw_user_meta_data?.ipe_address,
+                source?.user?.raw_user_meta_data?.ipeAddress,
+                source?.metadata?.ipe_address,
+                source?.metadata?.ipeAddress
+            ];
+
+            for (const candidate of candidates) {
+                const address = cleanIpeAddress(candidate);
+                if (address) {
+                    return address;
+                }
+            }
+
+            return findNestedIpeAddress(source);
         }
 
         function resolveDisplayName(sessionData, fallbackName = '') {
@@ -579,6 +641,15 @@
             const storedName = registeredNameForEmail(email);
 
             return registeredName || fallback || storedName;
+        }
+
+        function resolveIpeAddress(sessionData, fallbackAddress = '') {
+            const email = (sessionData.email || '').trim();
+            const registeredAddress = firstRegisteredIpeAddress(sessionData);
+            const fallback = cleanIpeAddress(fallbackAddress);
+            const storedAddress = registeredIpeAddressForEmail(email);
+
+            return registeredAddress || fallback || storedAddress;
         }
 
         function setAuthMode(mode) {
@@ -616,7 +687,7 @@
                 return true;
             }
 
-            const registeredName = cleanSignerName(await loadSupabaseProfileName(currentUser?.accessToken), currentUser?.email, currentUser?.userId) || registeredNameForEmail(currentUser?.email);
+            const registeredName = registeredNameForEmail(currentUser?.email);
 
             if (registeredName) {
                 saveSignerName(registeredName);
@@ -627,75 +698,27 @@
             return false;
         }
 
-        function supabaseDisplayName(authData) {
-            return firstRegisteredName(authData, authData?.user?.email, authData?.user?.id);
+        function userFromSession(data, fallbackName = '', fallbackAddress = '') {
+            const resolvedName = resolveDisplayName(data, fallbackName) || registeredNameForEmail(data.email);
+            const resolvedIpeAddress = resolveIpeAddress(data, fallbackAddress);
+            if (resolvedName) {
+                saveRegisteredName(data.email, resolvedName, data.userId);
+            }
+            if (resolvedIpeAddress) {
+                saveRegisteredIpeAddress(data.email, resolvedIpeAddress);
+            }
+
+            return {
+                name: resolvedName,
+                ipeAddress: resolvedIpeAddress,
+                email: data.email || '',
+                userId: data.userId || ''
+            };
         }
 
-        async function updateSupabaseProfileName(accessToken, email, name, userId = '') {
-            const cleanName = cleanSignerName(name, email, userId);
-            if (!authConfig?.supabaseUrl || !authConfig?.supabasePublishableKey || !accessToken || !cleanName) {
-                return '';
-            }
-
-            try {
-                const response = await fetch(`${authConfig.supabaseUrl}/auth/v1/user`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'apikey': authConfig.supabasePublishableKey,
-                        'Authorization': `Bearer ${accessToken}`
-                    },
-                    body: JSON.stringify({
-                        data: {
-                            full_name: cleanName,
-                            fullName: cleanName,
-                            name: cleanName,
-                            display_name: cleanName
-                        }
-                    })
-                });
-
-                if (!response.ok) {
-                    return cleanName;
-                }
-
-                const data = await response.json();
-                return firstRegisteredName(data, email, userId) || cleanName;
-            } catch {
-                return cleanName;
-            }
-        }
-
-        async function loadSupabaseProfileName(accessToken) {
-            if (!authConfig?.supabaseUrl || !authConfig?.supabasePublishableKey || !accessToken) {
-                return '';
-            }
-
-            let response;
-            try {
-                response = await fetch(`${authConfig.supabaseUrl}/auth/v1/user`, {
-                    headers: {
-                        'apikey': authConfig.supabasePublishableKey,
-                        'Authorization': `Bearer ${accessToken}`
-                    }
-                });
-            } catch {
-                return '';
-            }
-
-            if (!response.ok) {
-                return '';
-            }
-
-            const data = await response.json();
-            return firstRegisteredName(data, data?.email, data?.id);
-        }
-
-        async function loadCurrentSession(accessToken, fallbackName = '') {
+        async function loadCurrentSession(fallbackName = '', fallbackAddress = '') {
             const response = await fetch('/v1/auth/me', {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`
-                }
+                credentials: 'same-origin'
             });
 
             const data = await response.json();
@@ -703,23 +726,7 @@
                 throw new Error(data.error || 'Invalid session');
             }
 
-            let resolvedName = resolveDisplayName(data, fallbackName);
-            if (!resolvedName) {
-                resolvedName = cleanSignerName(await loadSupabaseProfileName(accessToken), data.email, data.userId);
-            }
-            if (!resolvedName) {
-                resolvedName = registeredNameForEmail(data.email);
-            }
-            if (resolvedName) {
-                saveRegisteredName(data.email, resolvedName, data.userId);
-            }
-
-            return {
-                name: resolvedName,
-                email: data.email || '',
-                userId: data.userId || '',
-                accessToken
-            };
+            return userFromSession(data, fallbackName, fallbackAddress);
         }
 
         // Tabs Control
@@ -773,13 +780,11 @@
                     }
 
                     const data = await signUpWithSupabase(cleanName, email, password, ipeAddress);
-                    saveRegisteredName(email, cleanName, data?.user?.id);
-                    const accessToken = data.access_token || data.session?.access_token || '';
+                    saveRegisteredName(email, cleanName, data?.userId);
+                    saveRegisteredIpeAddress(email, ipeAddress);
 
-                    if (accessToken) {
-                        const profileName = await updateSupabaseProfileName(accessToken, email, cleanName, data?.user?.id);
-                        currentUser = await loadCurrentSession(accessToken, profileName || cleanName || supabaseDisplayName(data));
-                        localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
+                    if (!data.requiresEmailConfirmation) {
+                        currentUser = userFromSession(data, cleanName, ipeAddress);
                         if (pendingAction) {
                             showApp(pendingAction);
                             pendingAction = null;
@@ -796,10 +801,7 @@
                 }
 
                 const authData = await loginWithSupabase(email, password);
-                const accessToken = authData.access_token || authData.session?.access_token || '';
-                const fallbackName = supabaseDisplayName(authData) || registeredNameForEmail(email);
-                currentUser = await loadCurrentSession(accessToken, fallbackName);
-                localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
+                currentUser = userFromSession(authData, registeredNameForEmail(email));
 
                 if (pendingAction) {
                     showApp(pendingAction);
@@ -820,10 +822,28 @@
             setAuthMode(authMode === 'create-account' ? 'sign-in' : 'create-account');
         });
 
-        function logout() {
-            currentUser = null;
-            localStorage.removeItem('ipesign_user');
-            goToLanding();
+        document.getElementById('brandHomeBtn').addEventListener('click', goToLanding);
+        document.getElementById('navLoginBtn').addEventListener('click', showLogin);
+        document.getElementById('navLogoutBtn').addEventListener('click', () => void logout());
+        document.getElementById('landingSignBtn').addEventListener('click', () => requireAuth('sign'));
+        document.getElementById('landingVerifyBtn').addEventListener('click', () => requireAuth('verify'));
+        document.getElementById('authCancelBtn').addEventListener('click', goToLanding);
+        document.getElementById('tab-sign').addEventListener('click', () => switchTab('sign'));
+        document.getElementById('tab-verify').addEventListener('click', () => switchTab('verify'));
+        document.getElementById('resetFileBtn').addEventListener('click', resetFile);
+        document.getElementById('prevPageBtn').addEventListener('click', () => void changePage(-1));
+        document.getElementById('nextPageBtn').addEventListener('click', () => void changePage(1));
+
+        async function logout() {
+            try {
+                await fetch('/v1/auth/logout', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+            } finally {
+                currentUser = null;
+                goToLanding();
+            }
         }
 
         // Drag and Drop implementation for Stamp
@@ -948,6 +968,7 @@
             
             document.getElementById('stampName').textContent = currentUser.name;
             document.getElementById('stampEmail').textContent = currentUser.email;
+            document.getElementById('stampIpeAddress').textContent = currentUser.ipeAddress || 'Not set';
             document.getElementById('stampDate').textContent = new Date().toLocaleDateString();
 
             try {
@@ -1169,9 +1190,16 @@
                                 font: regularFont,
                                 color: PDFLib.rgb(0.35, 0.39, 0.45),
                             });
-                            targetPage.drawText(fitTextToWidth(`Date: ${new Date().toLocaleString()}`, regularFont, detailSize, availableTextWidth), {
+                            targetPage.drawText(fitTextToWidth(`Ipe: ${currentUser.ipeAddress || 'Not set'}`, regularFont, detailSize, availableTextWidth), {
                                 x: contentX,
                                 y: contentTop - titleSize - (detailSize * 2) - (lineGap * 2),
+                                size: detailSize,
+                                font: regularFont,
+                                color: PDFLib.rgb(0.35, 0.39, 0.45),
+                            });
+                            targetPage.drawText(fitTextToWidth(`Date: ${new Date().toLocaleString()}`, regularFont, detailSize, availableTextWidth), {
+                                x: contentX,
+                                y: contentTop - titleSize - (detailSize * 3) - (lineGap * 3),
                                 size: detailSize,
                                 font: regularFont,
                                 color: PDFLib.rgb(0.35, 0.39, 0.45),
@@ -1188,14 +1216,10 @@
 
                 const formData = new FormData();
                 formData.append('pdf', finalFileOrBlob, currentPdfFile.name);
-                formData.append('common_name', currentUser.name);
-                formData.append('email_address', currentUser.email);
 
                 const response = await fetch('/v1/documents/sign', {
                     method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${currentUser.accessToken || ''}`
-                    },
+                    credentials: 'same-origin',
                     body: formData
                 });
 
@@ -1250,6 +1274,7 @@
             try {
                 const response = await fetch('/v1/documents/verify', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     body: formData
                 });
 
@@ -1266,12 +1291,12 @@
                 const desc = document.getElementById('verifyStatusDesc');
                 
                 if (data.valid) {
-                    icon.innerHTML = '<div class="w-14 h-14 rounded-xl bg-emerald-100 flex items-center justify-center shadow-inner"><svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div>';
+                    icon.replaceChildren(document.getElementById('validStatusIconTemplate').content.cloneNode(true));
                     title.textContent = 'Valid Signature';
                     title.className = 'text-2xl font-bold text-emerald-700';
                     desc.textContent = 'Document is authentic and unchanged.';
                 } else {
-                    icon.innerHTML = '<div class="w-14 h-14 rounded-xl bg-red-100 flex items-center justify-center shadow-inner"><svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></div>';
+                    icon.replaceChildren(document.getElementById('invalidStatusIconTemplate').content.cloneNode(true));
                     title.textContent = 'Invalid Signature';
                     title.className = 'text-2xl font-bold text-red-700';
                     desc.textContent = 'The document was modified after signing or is forged.';
@@ -1314,16 +1339,11 @@
             updateNav();
             try {
                 await loadAuthConfig();
-                if (currentUser?.accessToken) {
-                    currentUser = await loadCurrentSession(currentUser.accessToken, currentUser.name);
-                    localStorage.setItem('ipesign_user', JSON.stringify(currentUser));
-                } else if (authConfig?.authEnabled) {
-                    currentUser = null;
-                    localStorage.removeItem('ipesign_user');
+                if (authConfig?.authEnabled) {
+                    currentUser = await loadCurrentSession();
                 }
             } catch {
                 currentUser = null;
-                localStorage.removeItem('ipesign_user');
             }
 
             goToLanding();

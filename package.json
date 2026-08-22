@@ -1,0 +1,13 @@
+{
+  "name": "ipesign-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build:web": "tailwindcss -c tailwind.config.cjs -i apps/web/src/styles.css -o apps/web/public/assets/app.css --minify && node scripts/build-web.mjs"
+  },
+  "devDependencies": {
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "6.2.108",
+    "tailwindcss": "3.4.19"
+  }
+}
