@@ -2,6 +2,7 @@ package localchain
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -175,6 +176,139 @@ func TestChainRejectsDuplicateSingleUse(t *testing.T) {
 	if !errors.Is(err, ErrCertificateAlreadyUsed) {
 		t.Fatalf("AppendEvent(second signature) error = %v, want ErrCertificateAlreadyUsed", err)
 	}
+}
+
+func TestCommitEventsRollsBackWholeBatchWhenPersistenceFails(t *testing.T) {
+	_, privateKey, err := GenerateSealer()
+	if err != nil {
+		t.Fatalf("GenerateSealer() error = %v", err)
+	}
+
+	chain, err := NewChain(Config{Signer: privateKey})
+	if err != nil {
+		t.Fatalf("NewChain() error = %v", err)
+	}
+	if _, err := chain.AppendEvent(EventTypeIssuerRegistered, IssuerRegisteredPayload{
+		IssuerID: "ipe-city",
+		Name:     "Ipe City",
+	}); err != nil {
+		t.Fatalf("AppendEvent(issuer) error = %v", err)
+	}
+
+	certificate := CertificateIssuedPayload{
+		CertHash:      "sha256:atomic-cert",
+		PublicKeyHash: "sha256:atomic-key",
+		IssuerID:      "ipe-city",
+		DocumentHash:  "sha256:atomic-document",
+		PolicyID:      "participation-v1",
+		SingleUse:     true,
+	}
+	signature := SignatureRegisteredPayload{
+		RecordID:      "pdfsig-atomic",
+		CertHash:      certificate.CertHash,
+		DocumentHash:  certificate.DocumentHash,
+		SignedPDFHash: "sha256:atomic-signed-pdf",
+		SignatureHash: "sha256:atomic-signature",
+		IssuerID:      certificate.IssuerID,
+		PolicyID:      certificate.PolicyID,
+	}
+	events := []Event{
+		{Type: EventTypeCertificateIssued, Payload: certificate},
+		{Type: EventTypeSignatureRegistered, Payload: signature},
+	}
+
+	persistErr := errors.New("disk unavailable")
+	err = chain.CommitEvents(events, func([]Block) error { return persistErr })
+	if !errors.Is(err, persistErr) {
+		t.Fatalf("CommitEvents() error = %v, want %v", err, persistErr)
+	}
+	if chain.Len() != 2 {
+		t.Fatalf("chain length after rollback = %d, want 2", chain.Len())
+	}
+	if chain.GetCertificateNode(certificate.CertHash) != nil {
+		t.Fatal("rolled-back certificate remained indexed")
+	}
+	if chain.GetSignatureNode(signature.CertHash) != nil {
+		t.Fatal("rolled-back signature remained indexed")
+	}
+
+	var persisted []Block
+	if err := chain.CommitEvents(events, func(blocks []Block) error {
+		persisted = append(persisted, blocks...)
+		return nil
+	}); err != nil {
+		t.Fatalf("CommitEvents(retry) error = %v", err)
+	}
+	if len(persisted) != 2 || chain.Len() != 4 {
+		t.Fatalf("persisted blocks = %d, chain length = %d", len(persisted), chain.Len())
+	}
+}
+
+func BenchmarkVerifyRecordIndexed(b *testing.B) {
+	_, privateKey, err := GenerateSealer()
+	if err != nil {
+		b.Fatal(err)
+	}
+	chain, err := NewChain(Config{Signer: privateKey})
+	if err != nil {
+		b.Fatal(err)
+	}
+	if _, err := chain.AppendEvent(EventTypeIssuerRegistered, IssuerRegisteredPayload{
+		IssuerID: "ipe-city",
+		Name:     "Ipe City",
+	}); err != nil {
+		b.Fatal(err)
+	}
+
+	const records = 1_000
+	for index := 0; index < records; index++ {
+		suffix := fmt.Sprintf("%04d", index)
+		certificate := CertificateIssuedPayload{
+			CertHash:      "sha256:cert-" + suffix,
+			PublicKeyHash: "sha256:key-" + suffix,
+			IssuerID:      "ipe-city",
+			DocumentHash:  "sha256:doc-" + suffix,
+			PolicyID:      "participation-v1",
+			SingleUse:     true,
+		}
+		if _, err := chain.AppendEvent(EventTypeCertificateIssued, certificate); err != nil {
+			b.Fatal(err)
+		}
+		if _, err := chain.AppendEvent(EventTypeSignatureRegistered, SignatureRegisteredPayload{
+			RecordID:      "pdfsig-" + suffix,
+			CertHash:      certificate.CertHash,
+			DocumentHash:  certificate.DocumentHash,
+			SignedPDFHash: "sha256:signed-" + suffix,
+			SignatureHash: "sha256:sig-" + suffix,
+			IssuerID:      certificate.IssuerID,
+			PolicyID:      certificate.PolicyID,
+		}); err != nil {
+			b.Fatal(err)
+		}
+	}
+
+	input := VerifyRecordInput{
+		CertHash:      "sha256:cert-0999",
+		DocumentHash:  "sha256:doc-0999",
+		SignedPDFHash: "sha256:signed-0999",
+		SignatureHash: "sha256:sig-0999",
+	}
+	b.Run("IndexedRecord", func(b *testing.B) {
+		for index := 0; index < b.N; index++ {
+			result, err := chain.VerifyRecord(input)
+			if err != nil || !result.Valid {
+				b.Fatalf("VerifyRecord() result = %+v, error = %v", result, err)
+			}
+		}
+	})
+	b.Run("FullChainAudit", func(b *testing.B) {
+		for index := 0; index < b.N; index++ {
+			report, err := chain.Verify()
+			if err != nil || !report.Valid {
+				b.Fatalf("Verify() report = %+v, error = %v", report, err)
+			}
+		}
+	})
 }
 
 func TestVerifyDetectsTampering(t *testing.T) {

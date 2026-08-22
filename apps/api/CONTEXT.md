@@ -78,6 +78,10 @@ O backend escolhe o store por configuração:
 - com `DATABASE_URL`: PostgreSQL
 - sem `DATABASE_URL`: arquivos em `./data`
 
+O PostgreSQL usa pool de conexões nativo e uma tabela append-only para os
+blocos. O backend em arquivo usa lotes JSONL append-only. Em ambos os casos, a
+emissão do certificado e o registro da assinatura são persistidos juntos.
+
 ## Limites e premissas atuais
 
 - o sistema assina o hash do PDF

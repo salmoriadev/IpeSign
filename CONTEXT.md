@@ -11,6 +11,11 @@ IpeSign é uma aplicação para assinatura e verificação de PDFs com:
 - persistência local em arquivo ou em PostgreSQL
 - chaves persistidas protegidas por `IPESIGN_MASTER_KEY`
 
+Na persistência atual, as chaves da autoridade são cifradas uma única vez e os
+eventos seguintes são adicionados em lotes append-only. No PostgreSQL, cada
+bloco ocupa uma linha e índices únicos sobre `cert_hash` e `record_id` reforçam
+a regra de uso único dentro da transação.
+
 ## Modelo atual
 
 O sistema hoje opera com uma única instituição emissora:

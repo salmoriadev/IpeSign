@@ -65,7 +65,9 @@ type Ledger interface {
 	GetCertificateNode(certHash string) *localchain.Node
 	VerifyRecord(input localchain.VerifyRecordInput) (*localchain.RecordVerificationResult, error)
 	AppendEvent(eventType string, payload any) (*localchain.Node, error)
+	CommitEvents(events []localchain.Event, persist func([]localchain.Block) error) error
 	Snapshot() []localchain.Block
+	LastBlockHash() string
 }
 
 type Service struct {

@@ -37,12 +37,7 @@ func (service *Service) SignPDF(pdfBytes []byte, fileName string, policyID strin
 	// Important: The ephemeral private key must be destroyed after signing.
 	defer disposeIssuedPrivateKey(issuedCertificate)
 
-	// Step 2: Register the newly issued certificate on the localchain ledger.
-	if err := service.registerIssuedCertificate(issuedCertificate, documentHash, documentPolicyID); err != nil {
-		return nil, nil, err
-	}
-
-	// Step 3: Produce the digital signature using the ephemeral private key.
+	// Step 2: Produce the digital signature using the ephemeral private key.
 	signatureBytes := ed25519.Sign(issuedCertificate.PrivateKey, documentDigest[:])
 	signatureHash := cryptoutil.SHA256Tagged(signatureBytes)
 	recordID := service.nextRecordID()
@@ -76,8 +71,15 @@ func (service *Service) SignPDF(pdfBytes []byte, fileName string, policyID strin
 	signedPDFHash := cryptoutil.SHA256Tagged(combinedPDF)
 	signResult.SignedPDFHash = signedPDFHash // Return the final hash to caller
 
-	// Step 4: Register the generated signature on the ledger.
-	if err := service.registerDocumentSignature(recordID, issuedCertificate.CertHash, documentHash, signatureHash, documentPolicyID, signedPDFHash); err != nil {
+	// Step 3: Commit certificate issuance and use as one atomic ledger operation.
+	if err := service.commitDocumentSignature(
+		recordID,
+		issuedCertificate,
+		documentHash,
+		signatureHash,
+		documentPolicyID,
+		signedPDFHash,
+	); err != nil {
 		return nil, nil, err
 	}
 
@@ -222,11 +224,11 @@ func decodeSignature(signatureBase64 string) ([]byte, error) {
 	return signatureBytes, nil
 }
 
-func (service *Service) registerIssuedCertificate(
+func (service *Service) newIssuedCertificateEvent(
 	issuedCertificate *authority.IssuedDocumentCertificate,
 	documentHash string,
 	policyID string,
-) error {
+) localchain.Event {
 	certificateIssuedPayload := localchain.CertificateIssuedPayload{
 		CertHash:      issuedCertificate.CertHash,
 		PublicKeyHash: issuedCertificate.PublicKeyHash,
@@ -239,17 +241,20 @@ func (service *Service) registerIssuedCertificate(
 		CreatedAt:     time.Now().UTC().Format(time.RFC3339),
 	}
 
-	return service.appendAndSaveEvent(localchain.EventTypeCertificateIssued, certificateIssuedPayload, "certificate")
+	return localchain.Event{
+		Type:    localchain.EventTypeCertificateIssued,
+		Payload: certificateIssuedPayload,
+	}
 }
 
-func (service *Service) registerDocumentSignature(
+func (service *Service) newDocumentSignatureEvent(
 	recordID string,
 	certificateHash string,
 	documentHash string,
 	signatureHash string,
 	policyID string,
 	signedPDFHash string,
-) error {
+) localchain.Event {
 	signatureRegisteredPayload := localchain.SignatureRegisteredPayload{
 		RecordID:      recordID,
 		CertHash:      certificateHash,
@@ -262,18 +267,35 @@ func (service *Service) registerDocumentSignature(
 		Status:        "VALID",
 	}
 
-	return service.appendAndSaveEvent(localchain.EventTypeSignatureRegistered, signatureRegisteredPayload, "signature")
+	return localchain.Event{
+		Type:    localchain.EventTypeSignatureRegistered,
+		Payload: signatureRegisteredPayload,
+	}
 }
 
-func (service *Service) appendAndSaveEvent(eventType string, payload any, entityName string) error {
-	if _, err := service.chain.AppendEvent(eventType, payload); err != nil {
-		return fmt.Errorf("register %s: %w", entityName, err)
+func (service *Service) commitDocumentSignature(
+	recordID string,
+	issuedCertificate *authority.IssuedDocumentCertificate,
+	documentHash string,
+	signatureHash string,
+	policyID string,
+	signedPDFHash string,
+) error {
+	events := []localchain.Event{
+		service.newIssuedCertificateEvent(issuedCertificate, documentHash, policyID),
+		service.newDocumentSignatureEvent(
+			recordID,
+			issuedCertificate.CertHash,
+			documentHash,
+			signatureHash,
+			policyID,
+			signedPDFHash,
+		),
 	}
 
-	if err := service.save(); err != nil {
-		return fmt.Errorf("persist %s: %w", entityName, err)
+	if err := service.chain.CommitEvents(events, service.store.AppendBlocks); err != nil {
+		return fmt.Errorf("commit single-use signature: %w", err)
 	}
-
 	return nil
 }
 

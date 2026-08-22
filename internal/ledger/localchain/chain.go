@@ -59,6 +59,13 @@ type Block struct {
 	LedgerSignature string          `json:"ledgerSignature"`
 }
 
+// Event is an unsealed ledger transition. A group of events can be committed
+// as one persistence unit with CommitEvents.
+type Event struct {
+	Type    string
+	Payload any
+}
+
 type Node struct {
 	Block Block
 	prev  *Node
@@ -274,6 +281,38 @@ func (c *Chain) AppendEvent(eventType string, payload any) (*Node, error) {
 	return c.appendEventLocked(eventType, payload)
 }
 
+// CommitEvents appends all events and persists their sealed blocks while the
+// chain write lock is held. Any validation or persistence error restores the
+// exact in-memory state from before the operation.
+func (c *Chain) CommitEvents(events []Event, persist func([]Block) error) error {
+	if len(events) == 0 {
+		return nil
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	originalLength := c.length
+	blocks := make([]Block, 0, len(events))
+	for _, event := range events {
+		node, err := c.appendEventLocked(event.Type, event.Payload)
+		if err != nil {
+			c.rollbackToLocked(originalLength)
+			return err
+		}
+		blocks = append(blocks, cloneBlock(node.Block))
+	}
+
+	if persist != nil {
+		if err := persist(blocks); err != nil {
+			c.rollbackToLocked(originalLength)
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (c *Chain) Snapshot() []Block {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -291,6 +330,16 @@ func (c *Chain) Len() int {
 	defer c.mu.RUnlock()
 
 	return int(c.length)
+}
+
+func (c *Chain) LastBlockHash() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.tail == nil {
+		return ""
+	}
+	return c.tail.Block.BlockHash
 }
 
 func (c *Chain) Head() *Node {
@@ -378,49 +427,62 @@ func (c *Chain) VerifyRecord(input VerifyRecordInput) (*RecordVerificationResult
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	report, state, err := c.verifyLocked()
-	if err != nil {
-		return nil, err
-	}
-
 	result := &RecordVerificationResult{
-		ChainValid:          report.Valid,
-		BlocksVerified:      report.BlocksVerified,
-		LastBlockHash:       report.LastBlockHash,
+		ChainValid:          true,
+		BlocksVerified:      int(c.length),
 		DocumentHashMatches: true,
 		SignedPDFHashOK:     true,
 		SignatureHashOK:     true,
 	}
+	if c.tail != nil {
+		result.LastBlockHash = c.tail.Block.BlockHash
+	}
 
-	certState, certFound := state.certificates[input.CertHash]
+	certificateNode, certFound := c.certificates[input.CertHash]
 	if !certFound {
 		return result, nil
 	}
+	if err := c.verifyNodeIntegrity(certificateNode); err != nil {
+		return nil, err
+	}
+	certificatePayload, err := decodePayload[CertificateIssuedPayload](certificateNode.Block.Payload)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrVerificationFailed, err)
+	}
 
 	result.CertificateFound = true
-	result.CertificateRevoked = certState.Revoked
+	_, result.CertificateRevoked = c.revokedCertificates[input.CertHash]
 
-	sigState, sigFound := state.signaturesByCertHash[input.CertHash]
+	signatureNode, sigFound := c.signaturesByCertHash[input.CertHash]
 	if !sigFound {
 		return result, nil
 	}
+	if err := c.verifyNodeIntegrity(signatureNode); err != nil {
+		return nil, err
+	}
+	signaturePayload, err := decodePayload[SignatureRegisteredPayload](signatureNode.Block.Payload)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrVerificationFailed, err)
+	}
 
 	result.SignatureFound = true
-	result.SignatureRevoked = sigState.Revoked
-	result.RecordID = sigState.Payload.RecordID
-	result.SingleUseConfirmed = state.usageCountByCertHash[input.CertHash] == 1
+	_, result.SignatureRevoked = c.revokedSignaturesByID[signaturePayload.RecordID]
+	result.RecordID = signaturePayload.RecordID
+	// A single-use certificate can have at most one indexed signature because
+	// the transition validator rejects a second registration.
+	result.SingleUseConfirmed = certificatePayload.SingleUse
 
 	if input.DocumentHash != "" {
-		result.DocumentHashMatches = certState.Payload.DocumentHash == input.DocumentHash &&
-			sigState.Payload.DocumentHash == input.DocumentHash
+		result.DocumentHashMatches = certificatePayload.DocumentHash == input.DocumentHash &&
+			signaturePayload.DocumentHash == input.DocumentHash
 	}
 
 	if input.SignedPDFHash != "" {
-		result.SignedPDFHashOK = sigState.Payload.SignedPDFHash == input.SignedPDFHash
+		result.SignedPDFHashOK = signaturePayload.SignedPDFHash == input.SignedPDFHash
 	}
 
 	if input.SignatureHash != "" {
-		result.SignatureHashOK = sigState.Payload.SignatureHash == input.SignatureHash
+		result.SignatureHashOK = signaturePayload.SignatureHash == input.SignatureHash
 	}
 
 	result.Valid = result.ChainValid &&
@@ -434,6 +496,15 @@ func (c *Chain) VerifyRecord(input VerifyRecordInput) (*RecordVerificationResult
 		!result.SignatureRevoked
 
 	return result, nil
+}
+
+func (c *Chain) rollbackToLocked(length uint64) {
+	for c.length > length && c.tail != nil {
+		c.rollbackAppendLocked(c.tail)
+	}
+	// Rollback is only used on an error path. Rebuilding keeps every secondary
+	// index consistent even when more than one event had already been appended.
+	_ = c.rebuildIndexesLocked()
 }
 
 func (c *Chain) appendEventLocked(eventType string, payload any) (*Node, error) {
@@ -481,6 +552,7 @@ func (c *Chain) appendEventLocked(eventType string, payload any) (*Node, error) 
 
 	if err := c.indexNodeLocked(node); err != nil {
 		c.rollbackAppendLocked(node)
+		_ = c.rebuildIndexesLocked()
 		return nil, err
 	}
 
@@ -528,6 +600,7 @@ func (c *Chain) verifyLocked() (*VerificationReport, *ledgerState, error) {
 
 	return report, state, nil
 }
+
 type nodeIndexer func(*Chain, *Node) error
 
 var nodeIndexers = map[string]nodeIndexer{

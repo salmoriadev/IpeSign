@@ -36,17 +36,12 @@ func (service *Service) Backend() string {
 }
 
 func (service *Service) Health() (*Summary, error) {
-	verificationReport, err := service.chain.Verify()
-	if err != nil {
-		return nil, err
-	}
-
 	return &Summary{
 		Status:        "ok",
 		IssuerID:      service.authority.IssuerID(),
 		IssuerName:    service.authority.IssuerName(),
-		ChainBlocks:   verificationReport.BlocksVerified,
-		LastBlockHash: verificationReport.LastBlockHash,
+		ChainBlocks:   service.chain.Len(),
+		LastBlockHash: service.chain.LastBlockHash(),
 	}, nil
 }
 

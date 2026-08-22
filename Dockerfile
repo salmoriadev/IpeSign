@@ -12,8 +12,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/ipesign-api ./apps/ap
 FROM debian:bookworm-slim
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates postgresql-client \
-  && rm -rf /var/lib/apt/lists/*
+	&& apt-get install -y --no-install-recommends ca-certificates \
+	&& rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

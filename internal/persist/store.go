@@ -25,6 +25,7 @@ type StateStore interface {
 	Exists() (bool, error)
 	Load() (*State, error)
 	Save(*State) error
+	AppendBlocks([]localchain.Block) error
 }
 
 type Config struct {

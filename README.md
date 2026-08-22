@@ -171,7 +171,10 @@ Production envs:
 - `CORS_ALLOW_ORIGIN`
 - optional `PORT` supplied by the platform
 
-The current PostgreSQL persistence implementation still requires `psql`, so the runtime image installs `postgresql-client`.
+PostgreSQL uses an in-process connection pool. Ledger blocks are stored as
+append-only rows, while the authority keys remain encrypted in a separate
+singleton row. Certificate and record indexes enforce single use at the
+database layer without requiring the `psql` executable in the runtime image.
 
 Local container run:
 
