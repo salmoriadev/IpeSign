@@ -64,6 +64,8 @@ postgresql://postgres.PROJECT_REF:URL_ENCODED_PASSWORD@aws-0-REGION.pooler.supab
 
 If the password contains `@`, `:`, `/`, `?`, `#` or `%`, URL-encode it. `DATABASE_URL`, tokens, keys and `.env` files are ignored and must never be committed.
 
+On Render, paste only the URI value on one line, without quotes and without a `DATABASE_URL=` prefix. `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_JWT_SECRET` must all belong to the same Supabase project; mixing project references prevents database authentication or makes application authentication invalid.
+
 At startup, the API applies the embedded, versioned migrations from `internal/persist/migrations/`. The database login therefore needs migration privileges. Runtime connections immediately `SET ROLE ipesign_runtime` and receive no `UPDATE` or `DELETE` grant on ledger blocks; an append-only trigger also rejects row mutation.
 
 ## HTTP API

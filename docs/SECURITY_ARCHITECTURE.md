@@ -31,7 +31,7 @@ Rate limiting is an application safeguard, not a substitute for Render/edge DDoS
 
 ## Persistence
 
-With no `DATABASE_URL`, encrypted authority state and the full ledger snapshot are stored in the configured data directory. This is intended for local/single-instance operation; ephemeral container disks are not durable.
+With no `DATABASE_URL`, encrypted authority state and an append-only ledger log are stored in the configured data directory. A legacy full-ledger snapshot is migrated automatically on the first append. This is intended for local/single-instance operation; ephemeral container disks are not durable.
 
 With PostgreSQL, the authority state is one encrypted singleton row and every ledger block is a separate append-only row. The database is therefore not a snapshot-only model. Versioned migrations:
 
