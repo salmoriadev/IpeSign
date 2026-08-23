@@ -689,6 +689,33 @@ func computeBlockHash(block Block) string {
 	return hashBytes(raw)
 }
 
+// RecoverPostgresTimestamp restores sub-microsecond precision lost when an
+// older ledger block was persisted in a PostgreSQL TIMESTAMPTZ column. The
+// signed block hash makes the recovery deterministic without changing any
+// ledger field or signature.
+func RecoverPostgresTimestamp(block Block, persisted time.Time) (time.Time, bool) {
+	base := persisted.UTC()
+	withTimestamp := func(candidate time.Time) bool {
+		block.Timestamp = candidate
+		return computeBlockHash(block) == block.BlockHash
+	}
+
+	if withTimestamp(base) {
+		return base, true
+	}
+
+	for nanoseconds := time.Nanosecond; nanoseconds < time.Microsecond; nanoseconds += time.Nanosecond {
+		if candidate := base.Add(nanoseconds); withTimestamp(candidate) {
+			return candidate, true
+		}
+		if candidate := base.Add(-nanoseconds); withTimestamp(candidate) {
+			return candidate, true
+		}
+	}
+
+	return time.Time{}, false
+}
+
 func hashBytes(raw []byte) string {
 	sum := sha256.Sum256(raw)
 	return "sha256:" + hex.EncodeToString(sum[:])

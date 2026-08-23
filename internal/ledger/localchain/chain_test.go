@@ -402,6 +402,42 @@ func TestOpenChainFromSnapshotKeepsTraversal(t *testing.T) {
 	}
 }
 
+func TestRecoverPostgresTimestamp(t *testing.T) {
+	publicKey, privateKey, err := GenerateSealer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalTimestamp := time.Date(2026, 8, 23, 3, 21, 12, 123456789, time.UTC)
+	chain, err := NewChain(Config{
+		Signer:    privateKey,
+		VerifyKey: publicKey,
+		Clock:     func() time.Time { return originalTimestamp },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	block := chain.Snapshot()[0]
+	persistedTimestamp := block.Timestamp.Truncate(time.Microsecond)
+	recovered, ok := RecoverPostgresTimestamp(block, persistedTimestamp)
+	if !ok {
+		t.Fatal("failed to recover timestamp precision")
+	}
+	if !recovered.Equal(originalTimestamp) {
+		t.Fatalf("recovered timestamp = %s, want %s", recovered, originalTimestamp)
+	}
+
+	block.Timestamp = recovered
+	if _, err := OpenChain(Config{VerifyKey: publicKey}, []Block{block}); err != nil {
+		t.Fatalf("OpenChain() after timestamp recovery error = %v", err)
+	}
+
+	block.BlockHash = "sha256:tampered"
+	if _, ok := RecoverPostgresTimestamp(block, persistedTimestamp); ok {
+		t.Fatal("recovered a timestamp for a tampered block hash")
+	}
+}
+
 func steppedClock(start time.Time, step time.Duration) func() time.Time {
 	current := start.Add(-step)
 	return func() time.Time {

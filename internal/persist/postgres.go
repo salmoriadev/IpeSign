@@ -30,7 +30,7 @@ func NewPostgresStore(databaseURL string, masterKey string) (*PostgresStore, err
 		return nil, fmt.Errorf("database URL is required")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	adminConfig, err := postgresPoolConfig(databaseURL, false)
@@ -46,6 +46,10 @@ func NewPostgresStore(databaseURL string, masterKey string) (*PostgresStore, err
 		return nil, fmt.Errorf("connect to postgres: %w", err)
 	}
 	if err := applyMigrations(ctx, adminPool); err != nil {
+		adminPool.Close()
+		return nil, err
+	}
+	if err := repairLegacyLedgerTimestamps(ctx, adminPool); err != nil {
 		adminPool.Close()
 		return nil, err
 	}
@@ -335,7 +339,8 @@ LIMIT 1`).Scan(&lastIndex, &lastHash)
 func (s *PostgresStore) loadBlocks(ctx context.Context) ([]localchain.Block, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT block_index, prev_hash, block_hash, occurred_at, event_type,
-       payload, payload_hash, ledger_signature
+       payload, payload_hash, ledger_signature,
+       COALESCE(occurred_at_canonical, '')
 FROM ipesign.ipesign_ledger_blocks
 ORDER BY block_index`)
 	if err != nil {
@@ -347,15 +352,18 @@ ORDER BY block_index`)
 	for rows.Next() {
 		var block localchain.Block
 		var blockIndex int64
+		var persistedTimestamp time.Time
+		var canonicalTimestamp string
 		if err := rows.Scan(
 			&blockIndex,
 			&block.PrevHash,
 			&block.BlockHash,
-			&block.Timestamp,
+			&persistedTimestamp,
 			&block.EventType,
 			&block.Payload,
 			&block.PayloadHash,
 			&block.LedgerSignature,
+			&canonicalTimestamp,
 		); err != nil {
 			return nil, fmt.Errorf("scan postgres ledger block: %w", err)
 		}
@@ -363,6 +371,14 @@ ORDER BY block_index`)
 			return nil, fmt.Errorf("invalid negative postgres ledger index %d", blockIndex)
 		}
 		block.Index = uint64(blockIndex)
+		if canonicalTimestamp == "" {
+			block.Timestamp = persistedTimestamp.UTC()
+		} else {
+			block.Timestamp, err = time.Parse(time.RFC3339Nano, canonicalTimestamp)
+			if err != nil {
+				return nil, fmt.Errorf("parse postgres ledger block %d timestamp: %w", block.Index, err)
+			}
+		}
 		blocks = append(blocks, block)
 	}
 	if err := rows.Err(); err != nil {
@@ -385,8 +401,9 @@ func insertBlocks(ctx context.Context, tx pgx.Tx, blocks []localchain.Block) err
 		_, err := tx.Exec(ctx, `
 INSERT INTO ipesign.ipesign_ledger_blocks (
   block_index, prev_hash, block_hash, occurred_at, event_type,
-	payload, payload_hash, ledger_signature, cert_hash, record_id
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULLIF($9, ''), NULLIF($10, ''))`,
+	payload, payload_hash, ledger_signature, cert_hash, record_id,
+	occurred_at_canonical
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULLIF($9, ''), NULLIF($10, ''), $11)`,
 			int64(block.Index),
 			block.PrevHash,
 			block.BlockHash,
@@ -397,6 +414,7 @@ INSERT INTO ipesign.ipesign_ledger_blocks (
 			block.LedgerSignature,
 			searchableFields.CertHash,
 			searchableFields.RecordID,
+			block.Timestamp.UTC().Format(time.RFC3339Nano),
 		)
 		if err != nil {
 			var pgErr *pgconn.PgError
@@ -407,6 +425,90 @@ INSERT INTO ipesign.ipesign_ledger_blocks (
 		}
 	}
 
+	return nil
+}
+
+type legacyTimestampRepair struct {
+	blockIndex int64
+	canonical  string
+}
+
+func repairLegacyLedgerTimestamps(ctx context.Context, pool *pgxpool.Pool) error {
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin legacy ledger timestamp repair: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, ledgerAdvisoryLockID); err != nil {
+		return fmt.Errorf("lock legacy ledger timestamp repair: %w", err)
+	}
+
+	rows, err := tx.Query(ctx, `
+SELECT block_index, prev_hash, block_hash, occurred_at, event_type,
+       payload, payload_hash, ledger_signature
+FROM ipesign.ipesign_ledger_blocks
+WHERE occurred_at_canonical IS NULL
+ORDER BY block_index`)
+	if err != nil {
+		return fmt.Errorf("query legacy ledger timestamps: %w", err)
+	}
+
+	var repairs []legacyTimestampRepair
+	for rows.Next() {
+		var block localchain.Block
+		var blockIndex int64
+		var persistedTimestamp time.Time
+		if err := rows.Scan(
+			&blockIndex,
+			&block.PrevHash,
+			&block.BlockHash,
+			&persistedTimestamp,
+			&block.EventType,
+			&block.Payload,
+			&block.PayloadHash,
+			&block.LedgerSignature,
+		); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan legacy ledger timestamp: %w", err)
+		}
+		if blockIndex < 0 {
+			rows.Close()
+			return fmt.Errorf("invalid negative postgres ledger index %d", blockIndex)
+		}
+		block.Index = uint64(blockIndex)
+		recovered, ok := localchain.RecoverPostgresTimestamp(block, persistedTimestamp)
+		if !ok {
+			rows.Close()
+			return fmt.Errorf("recover legacy postgres timestamp for block %d: signed block hash does not match", blockIndex)
+		}
+		repairs = append(repairs, legacyTimestampRepair{
+			blockIndex: blockIndex,
+			canonical:  recovered.UTC().Format(time.RFC3339Nano),
+		})
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("read legacy ledger timestamps: %w", err)
+	}
+	rows.Close()
+
+	for _, repair := range repairs {
+		commandTag, err := tx.Exec(ctx, `
+UPDATE ipesign.ipesign_ledger_blocks
+SET occurred_at_canonical = $1
+WHERE block_index = $2 AND occurred_at_canonical IS NULL`, repair.canonical, repair.blockIndex)
+		if err != nil {
+			return fmt.Errorf("persist recovered timestamp for block %d: %w", repair.blockIndex, err)
+		}
+		if commandTag.RowsAffected() != 1 {
+			return fmt.Errorf("persist recovered timestamp for block %d: concurrent ledger change", repair.blockIndex)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit legacy ledger timestamp repair: %w", err)
+	}
 	return nil
 }
 

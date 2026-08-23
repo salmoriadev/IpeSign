@@ -110,13 +110,53 @@ WHERE oid = 'ipesign.ipesign_ledger_blocks'::regclass`).Scan(&rlsEnabled, &rlsFo
 	if len(loaded.Blocks) != len(state.Blocks) {
 		t.Fatalf("loaded blocks = %d, want %d", len(loaded.Blocks), len(state.Blocks))
 	}
+	if _, err := localchain.OpenChain(localchain.Config{Signer: loaded.LedgerKey}, loaded.Blocks); err != nil {
+		t.Fatalf("open persisted ledger: %v", err)
+	}
 	if _, err := store.pool.Exec(ctx, `UPDATE ipesign.ipesign_ledger_blocks SET event_type = 'tampered'`); err == nil {
 		t.Fatal("runtime role unexpectedly updated append-only ledger rows")
+	}
+
+	// Simulate the format written before canonical timestamps were added. A
+	// restart must recover the lost nanoseconds from the signed block hash.
+	if _, err := admin.Exec(ctx, `
+ALTER TABLE ipesign.ipesign_ledger_blocks DISABLE TRIGGER ipesign_ledger_append_only;
+UPDATE ipesign.ipesign_ledger_blocks SET occurred_at_canonical = NULL;
+ALTER TABLE ipesign.ipesign_ledger_blocks ENABLE TRIGGER ipesign_ledger_append_only;`); err != nil {
+		t.Fatalf("prepare legacy timestamp row: %v", err)
+	}
+	store.pool.Close()
+
+	repairedStore, err := NewPostgresStore(databaseURL, "integration-master-key")
+	if err != nil {
+		t.Fatalf("restart store with legacy timestamps: %v", err)
+	}
+	defer repairedStore.pool.Close()
+	repairedState, err := repairedStore.Load()
+	if err != nil {
+		t.Fatalf("load repaired ledger: %v", err)
+	}
+	if !repairedState.Blocks[0].Timestamp.Equal(state.Blocks[0].Timestamp) {
+		t.Fatalf("repaired timestamp = %s, want %s", repairedState.Blocks[0].Timestamp, state.Blocks[0].Timestamp)
+	}
+	if _, err := localchain.OpenChain(localchain.Config{Signer: repairedState.LedgerKey}, repairedState.Blocks); err != nil {
+		t.Fatalf("verify repaired ledger: %v", err)
+	}
+
+	var canonicalTimestamp string
+	if err := admin.QueryRow(ctx, `
+SELECT occurred_at_canonical
+FROM ipesign.ipesign_ledger_blocks
+WHERE block_index = 0`).Scan(&canonicalTimestamp); err != nil {
+		t.Fatalf("read repaired timestamp: %v", err)
+	}
+	if canonicalTimestamp != state.Blocks[0].Timestamp.UTC().Format(time.RFC3339Nano) {
+		t.Fatalf("canonical timestamp = %q", canonicalTimestamp)
 	}
 	if _, err := admin.Exec(ctx, `DELETE FROM ipesign.ipesign_ledger_blocks`); err == nil {
 		t.Fatal("append-only trigger unexpectedly allowed owner deletion")
 	}
-	if err := store.AppendBlocks(state.Blocks); !errors.Is(err, ErrLedgerConflict) {
+	if err := repairedStore.AppendBlocks(state.Blocks); !errors.Is(err, ErrLedgerConflict) {
 		t.Fatalf("duplicate append error = %v", err)
 	}
 }
@@ -135,7 +175,12 @@ func postgresTestState(t *testing.T) *State {
 	if err != nil {
 		t.Fatal(err)
 	}
-	chain, err := localchain.NewChain(localchain.Config{Signer: ledgerKey})
+	chain, err := localchain.NewChain(localchain.Config{
+		Signer: ledgerKey,
+		Clock: func() time.Time {
+			return time.Date(2026, 8, 23, 3, 21, 12, 123456789, time.UTC)
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

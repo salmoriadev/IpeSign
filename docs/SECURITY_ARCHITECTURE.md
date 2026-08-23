@@ -42,6 +42,7 @@ With PostgreSQL, the authority state is one encrypted singleton row and every le
 - grant ledger `SELECT` and `INSERT`, but not `UPDATE`, `DELETE` or `TRUNCATE`;
 - install a trigger that rejects ledger row updates and deletions, including accidental owner operations;
 - enforce unique certificate-use and record IDs with partial indexes;
+- preserve the exact signed RFC 3339 timestamp separately from PostgreSQL's microsecond-precision `TIMESTAMPTZ`, recovering legacy sub-microsecond precision from the signed block hash;
 - apply statement and idle-transaction timeouts and a small connection pool.
 
 The configured PostgreSQL owner connection applies migrations and grants itself the runtime role. Runtime pool connections execute `SET ROLE ipesign_runtime`. For stronger production separation, run migrations as an owner during deployment and provide the service with a dedicated login that can only assume `ipesign_runtime`.
