@@ -9,7 +9,7 @@ COPY apps/web ./apps/web
 RUN npm ci --ignore-scripts \
 	&& npm run build:web
 
-FROM golang:1.26-bookworm AS builder
+FROM golang:1.27-bookworm AS builder
 
 WORKDIR /app
 
