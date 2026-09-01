@@ -7,7 +7,7 @@
   },
   "devDependencies": {
     "pdf-lib": "1.17.1",
-    "pdfjs-dist": "6.2.108",
+    "pdfjs-dist": "6.3.289",
     "tailwindcss": "3.4.19"
   }
 }
